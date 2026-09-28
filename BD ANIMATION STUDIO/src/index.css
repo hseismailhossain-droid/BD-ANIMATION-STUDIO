@@ -5,10 +5,15 @@ html, body, #root {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
-  touch-action: none;
   height: 100%;
   width: 100%;
   overflow: hidden;
+}
+
+/* Enable smooth touch scrolling on all scrollable panels, sidebars & lists */
+.overflow-y-auto, .overflow-x-auto, .overflow-auto, [data-scrollable="true"], .scroll-touch {
+  touch-action: pan-y !important;
+  -webkit-overflow-scrolling: touch !important;
 }
 
 @layer utilities {
