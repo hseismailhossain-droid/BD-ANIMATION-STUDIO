@@ -58,6 +58,13 @@ import { BoneRigBar } from './components/BoneRigBar';
 import { VectorEngine } from './engine/vectorEngine';
 import { LightingGizmoBar, LightingGizmoState } from './components/LightingGizmoBar';
 import { VideoFrameExtractor } from './engine/videoFrameExtractor';
+import {
+  ChevronLeft,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+  Layers as LayersIcon,
+} from 'lucide-react';
 
 export default function App() {
   // Document Canvas Config (supports HD, Full HD, 2K, 4K, 8K UHD)
@@ -141,6 +148,18 @@ export default function App() {
 
   // Alignment Grid
   const [gridEnabled, setGridEnabled] = useState(false);
+
+  // Full Page Zen Drawing Mode (Pure canvas, hide distractions)
+  const [isFullPageMode, setIsFullPageMode] = useState<boolean>(false);
+
+  // Right Dock (Color Studio + Layers Panel) visibility
+  // On mobile & small screens, defaults to closed so the canvas gets maximum width!
+  const [rightPanelOpen, setRightPanelOpen] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth >= 1024 && window.innerHeight >= 550;
+    }
+    return true;
+  });
 
   // Selected Vector Shape for Illustrator Direct Select Tool
   const [selectedVectorShapeId, setSelectedVectorShapeId] = useState<string | undefined>(undefined);
@@ -364,16 +383,18 @@ export default function App() {
    */
   const handleFitZoom = useCallback(() => {
     const isMobile = typeof window !== 'undefined' && window.innerWidth <= 800;
-    const screenW = isMobile ? window.innerWidth - 30 : window.innerWidth - 380;
-    const screenH = isMobile ? window.innerHeight - 100 : window.innerHeight - 150;
-    const fitZoom = Math.min(screenW / config.width, screenH / config.height) * (isMobile ? 0.92 : 0.85);
+    const reservedWidth = isMobile ? 30 : isFullPageMode ? 80 : (rightPanelOpen ? 380 : 100);
+    const reservedHeight = isMobile ? 100 : isFullPageMode ? 70 : 140;
+    const screenW = Math.max(200, window.innerWidth - reservedWidth);
+    const screenH = Math.max(200, window.innerHeight - reservedHeight);
+    const fitZoom = Math.min(screenW / config.width, screenH / config.height) * (isMobile ? 0.92 : 0.88);
     setTransform({
-      zoom: Math.max(0.05, Math.min(2, fitZoom)),
+      zoom: Math.max(0.05, Math.min(4, fitZoom)),
       panX: 0,
       panY: 0,
       rotation: 0,
     });
-  }, [config.width, config.height]);
+  }, [config.width, config.height, isFullPageMode, rightPanelOpen]);
 
   useEffect(() => {
     handleFitZoom();
@@ -2280,6 +2301,17 @@ export default function App() {
         return;
       }
 
+      if (e.key.toLowerCase() === 'f' && !e.ctrlKey && !e.metaKey) {
+        setIsFullPageMode((prev) => !prev);
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        setRightPanelOpen((prev) => !prev);
+        return;
+      }
+
       if (e.key === 'Delete' || e.key === 'Backspace') {
         if (selectedVectorShapeId) {
           e.preventDefault();
@@ -3116,116 +3148,124 @@ export default function App() {
 
   return (
     <div className="flex flex-col w-screen h-screen overflow-hidden bg-neutral-950 font-sans select-none text-neutral-100">
-      {/* 1. Top Menu Bar (Photoshop Menu Structure) */}
-      <TopMenuBar
-        config={config}
-        transform={transform}
-        canUndo={historyIndex.current >= 0}
-        canRedo={historyIndex.current < historyStack.current.length - 1}
-        onUndo={handleUndo}
-        onRedo={handleRedo}
-        onZoomIn={() => setTransform((prev) => ({ ...prev, zoom: Math.min(32, prev.zoom * 1.25) }))}
-        onZoomOut={() => setTransform((prev) => ({ ...prev, zoom: Math.max(0.05, prev.zoom * 0.8) }))}
-        onResetZoom={handleFitZoom}
-        onFlipH={handleFlipCanvasH}
-        onFlipV={handleFlipCanvasV}
-        onRotate90={handleRotateCanvas90}
-        onRotate270={handleRotateCanvas270}
-        onNewCanvas={() => setShowNewCanvasModal(true)}
-        onOpenResolutionModal={() => setShowResolutionModal(true)}
-        onSaveProject={() => ExportEngine.saveProject(frames, config, animSettings)}
-        onOpenProject={handleOpenProject}
-        onImportImage={handleImportImage}
-        onImportReferenceVideo={handleImportReferenceVideo}
-        onExport={() => setShowExportModal(true)}
-        onOpenFilters={() => setShowFiltersModal(true)}
-        onOpenBrushSettings={() => setShowBrushStudioModal(true)}
-        timelineVisible={timelineVisible}
-        onToggleTimeline={() => setTimelineVisible(!timelineVisible)}
-        gridEnabled={gridEnabled}
-        onToggleGrid={() => setGridEnabled(!gridEnabled)}
-        onSelectAll={handleSelectAll}
-        onDeselect={handleDeselect}
-        onInvertSelection={handleInvertSelection}
-        onFillSelection={handleFillSelection}
-        onClearSelection={handleDeleteSelection}
-        onOpenTransform={(mode) => initLayerTransform(activeLayerId, mode)}
-        onToggleReference={() => setReferenceConfig((prev) => ({ ...prev, open: !prev.open }))}
-        isReferenceOpen={referenceConfig.open}
-        onOpenTween={() => setShowTweenModal(true)}
-        onOpenBoneRig={() => handleStartBoneRig(activeLayerId)}
-        onOpenLighting={() => setShowLightingModal(true)}
-        onOpenSoundStudio={() => setShowSoundStudio(true)}
-        onOpenQuickVoice={() => setShowQuickVoiceRecorder(true)}
-        audioTrackCount={audioTracks.length}
-        dynamicIslandEnabled={dynamicIslandEnabled}
-        onToggleDynamicIsland={() => setDynamicIslandEnabled(!dynamicIslandEnabled)}
-        onCopy={handleCopyObject}
-        onPaste={handlePasteObject}
-        onCut={handleCutObject}
-        onDuplicate={selectedVectorShape ? handleDuplicateSelectedShape : () => handleDuplicateLayer(activeLayerId)}
-        canPaste={hasClipboardContent}
-      />
+      {/* 1. Top Menu Bar (Photoshop Menu Structure) - Hidden in Full Page Zen Mode */}
+      {!isFullPageMode && (
+        <TopMenuBar
+          config={config}
+          transform={transform}
+          canUndo={historyIndex.current >= 0}
+          canRedo={historyIndex.current < historyStack.current.length - 1}
+          onUndo={handleUndo}
+          onRedo={handleRedo}
+          onZoomIn={() => setTransform((prev) => ({ ...prev, zoom: Math.min(32, prev.zoom * 1.25) }))}
+          onZoomOut={() => setTransform((prev) => ({ ...prev, zoom: Math.max(0.05, prev.zoom * 0.8) }))}
+          onResetZoom={handleFitZoom}
+          onFlipH={handleFlipCanvasH}
+          onFlipV={handleFlipCanvasV}
+          onRotate90={handleRotateCanvas90}
+          onRotate270={handleRotateCanvas270}
+          onNewCanvas={() => setShowNewCanvasModal(true)}
+          onOpenResolutionModal={() => setShowResolutionModal(true)}
+          onSaveProject={() => ExportEngine.saveProject(frames, config, animSettings)}
+          onOpenProject={handleOpenProject}
+          onImportImage={handleImportImage}
+          onImportReferenceVideo={handleImportReferenceVideo}
+          onExport={() => setShowExportModal(true)}
+          onOpenFilters={() => setShowFiltersModal(true)}
+          onOpenBrushSettings={() => setShowBrushStudioModal(true)}
+          timelineVisible={timelineVisible}
+          onToggleTimeline={() => setTimelineVisible(!timelineVisible)}
+          gridEnabled={gridEnabled}
+          onToggleGrid={() => setGridEnabled(!gridEnabled)}
+          onSelectAll={handleSelectAll}
+          onDeselect={handleDeselect}
+          onInvertSelection={handleInvertSelection}
+          onFillSelection={handleFillSelection}
+          onClearSelection={handleDeleteSelection}
+          onOpenTransform={(mode) => initLayerTransform(activeLayerId, mode)}
+          onToggleReference={() => setReferenceConfig((prev) => ({ ...prev, open: !prev.open }))}
+          isReferenceOpen={referenceConfig.open}
+          onOpenTween={() => setShowTweenModal(true)}
+          onOpenBoneRig={() => handleStartBoneRig(activeLayerId)}
+          onOpenLighting={() => setShowLightingModal(true)}
+          onOpenSoundStudio={() => setShowSoundStudio(true)}
+          onOpenQuickVoice={() => setShowQuickVoiceRecorder(true)}
+          audioTrackCount={audioTracks.length}
+          dynamicIslandEnabled={dynamicIslandEnabled}
+          onToggleDynamicIsland={() => setDynamicIslandEnabled(!dynamicIslandEnabled)}
+          onCopy={handleCopyObject}
+          onPaste={handlePasteObject}
+          onCut={handleCutObject}
+          onDuplicate={selectedVectorShape ? handleDuplicateSelectedShape : () => handleDuplicateLayer(activeLayerId)}
+          canPaste={hasClipboardContent}
+          isFullPageMode={isFullPageMode}
+          onToggleFullPageMode={() => setIsFullPageMode((prev) => !prev)}
+          rightPanelOpen={rightPanelOpen}
+          onToggleRightPanel={() => setRightPanelOpen((prev) => !prev)}
+        />
+      )}
 
-      {/* 2. Contextual Tool Options Bar (Full Photoshop / Illustrator Parity) */}
-      <ToolOptionsBar
-        activeTool={activeTool}
-        brushSettings={brushSettings}
-        onUpdateBrushSettings={(updates) => setBrushSettings((prev) => ({ ...prev, ...updates }))}
-        vectorSettings={vectorSettings}
-        onUpdateVectorSettings={(updates: Partial<VectorSettings>) =>
-          setVectorSettings((prev: VectorSettings) => ({ ...prev, ...updates }))
-        }
-        textSettings={textSettings}
-        onUpdateTextSettings={(updates) => setTextSettings((prev) => ({ ...prev, ...updates }))}
-        gradientSettings={gradientSettings}
-        onUpdateGradientSettings={(updates) => setGradientSettings((prev) => ({ ...prev, ...updates }))}
-        cloneSettings={cloneSettings}
-        onToggleCloneSampling={() =>
-          setCloneSettings((prev) => ({ ...prev, isSettingSource: !prev.isSettingSource }))
-        }
-        primaryColor={primaryColor}
-        hasActivePath={activeVectorPath !== null && activeVectorPath.length > 0}
-        onCloseActivePath={handleCloseActivePath}
-        onCancelActivePath={() => setActiveVectorPath(null)}
-        hasSelection={selection.active}
-        onClearSelection={handleDeselect}
-        onFillSelection={handleFillSelection}
-        onDeleteSelection={handleDeleteSelection}
-        onInvertSelection={handleInvertSelection}
-        bucketTolerance={bucketTolerance}
-        onChangeBucketTolerance={setBucketTolerance}
-        onOpenBrushStudio={() => setShowBrushStudioModal(true)}
-        selectedVectorShape={selectedVectorShape}
-        onUpdateSelectedShape={handleUpdateSelectedShape}
-        onDeleteSelectedShape={handleDeleteSelectedShape}
-        onDuplicateSelectedShape={handleDuplicateSelectedShape}
-        onCopyObject={handleCopyObject}
-        onPasteObject={handlePasteObject}
-        canPaste={hasClipboardContent}
-        onNudgeLayer={handleNudgeLayer}
-        onFlipLayerH={handleFlipLayerH}
-        onFlipLayerV={handleFlipLayerV}
-        onRotateLayer90={handleRotateLayer90}
-        onCenterLayer={handleCenterLayer}
-        meshSettings={meshSettings}
-        onUpdateMeshSettings={(updates) => setMeshSettings((prev) => ({ ...prev, ...updates }))}
-        zoomSettings={zoomSettings}
-        onUpdateZoomSettings={(updates) => setZoomSettings((prev) => ({ ...prev, ...updates }))}
-        currentZoom={transform.zoom}
-        onSetZoom={(newZoom) => setTransform((prev) => ({ ...prev, zoom: Math.max(0.05, Math.min(32, newZoom)) }))}
-        onResetZoom={handleFitZoom}
-        hasStrayShapes={hasStrayShapes}
-        onClearStrayShapes={handleClearStrayShapes}
-        activeLayer={activeLayer}
-        onEnsureVectorLayer={handleEnsureVectorLayer}
-        isTransformActive={transformState.isActive}
-        onCancelTransform={handleCancelTransform}
-        onApplyTransform={handleApplyTransform}
-        isBoneActive={boneRigState.isActive}
-        onCancelBoneRig={handleCancelBoneRig}
-        onApplyBoneRig={handleApplyBoneRig}
-      />
+      {/* 2. Contextual Tool Options Bar (Full Photoshop / Illustrator Parity) - Hidden in Full Page Zen Mode */}
+      {!isFullPageMode && (
+        <ToolOptionsBar
+          activeTool={activeTool}
+          brushSettings={brushSettings}
+          onUpdateBrushSettings={(updates) => setBrushSettings((prev) => ({ ...prev, ...updates }))}
+          vectorSettings={vectorSettings}
+          onUpdateVectorSettings={(updates: Partial<VectorSettings>) =>
+            setVectorSettings((prev: VectorSettings) => ({ ...prev, ...updates }))
+          }
+          textSettings={textSettings}
+          onUpdateTextSettings={(updates) => setTextSettings((prev) => ({ ...prev, ...updates }))}
+          gradientSettings={gradientSettings}
+          onUpdateGradientSettings={(updates) => setGradientSettings((prev) => ({ ...prev, ...updates }))}
+          cloneSettings={cloneSettings}
+          onToggleCloneSampling={() =>
+            setCloneSettings((prev) => ({ ...prev, isSettingSource: !prev.isSettingSource }))
+          }
+          primaryColor={primaryColor}
+          hasActivePath={activeVectorPath !== null && activeVectorPath.length > 0}
+          onCloseActivePath={handleCloseActivePath}
+          onCancelActivePath={() => setActiveVectorPath(null)}
+          hasSelection={selection.active}
+          onClearSelection={handleDeselect}
+          onFillSelection={handleFillSelection}
+          onDeleteSelection={handleDeleteSelection}
+          onInvertSelection={handleInvertSelection}
+          bucketTolerance={bucketTolerance}
+          onChangeBucketTolerance={setBucketTolerance}
+          onOpenBrushStudio={() => setShowBrushStudioModal(true)}
+          selectedVectorShape={selectedVectorShape}
+          onUpdateSelectedShape={handleUpdateSelectedShape}
+          onDeleteSelectedShape={handleDeleteSelectedShape}
+          onDuplicateSelectedShape={handleDuplicateSelectedShape}
+          onCopyObject={handleCopyObject}
+          onPasteObject={handlePasteObject}
+          canPaste={hasClipboardContent}
+          onNudgeLayer={handleNudgeLayer}
+          onFlipLayerH={handleFlipLayerH}
+          onFlipLayerV={handleFlipLayerV}
+          onRotateLayer90={handleRotateLayer90}
+          onCenterLayer={handleCenterLayer}
+          meshSettings={meshSettings}
+          onUpdateMeshSettings={(updates) => setMeshSettings((prev) => ({ ...prev, ...updates }))}
+          zoomSettings={zoomSettings}
+          onUpdateZoomSettings={(updates) => setZoomSettings((prev) => ({ ...prev, ...updates }))}
+          currentZoom={transform.zoom}
+          onSetZoom={(newZoom) => setTransform((prev) => ({ ...prev, zoom: Math.max(0.05, Math.min(32, newZoom)) }))}
+          onResetZoom={handleFitZoom}
+          hasStrayShapes={hasStrayShapes}
+          onClearStrayShapes={handleClearStrayShapes}
+          activeLayer={activeLayer}
+          onEnsureVectorLayer={handleEnsureVectorLayer}
+          isTransformActive={transformState.isActive}
+          onCancelTransform={handleCancelTransform}
+          onApplyTransform={handleApplyTransform}
+          isBoneActive={boneRigState.isActive}
+          onCancelBoneRig={handleCancelBoneRig}
+          onApplyBoneRig={handleApplyBoneRig}
+        />
+      )}
 
       {/* 3. Main Workspace Area: Tools Sidebar + Canvas Viewport + Right Side Panels */}
       <div className="flex-1 flex overflow-hidden relative">
@@ -3307,6 +3347,11 @@ export default function App() {
             canPaste={hasClipboardContent}
             onDeleteSelection={handleDeleteSelection}
             onClearSelection={handleDeselect}
+            isFullPageMode={isFullPageMode}
+            onToggleFullPage={() => setIsFullPageMode((prev) => !prev)}
+            rightPanelOpen={rightPanelOpen}
+            onToggleRightPanel={() => setRightPanelOpen((prev) => !prev)}
+            onFitZoom={handleFitZoom}
             onEnsureVectorLayer={handleEnsureVectorLayer}
             onEnsureRasterLayer={handleEnsureRasterLayer}
             meshSettings={meshSettings}
@@ -3321,6 +3366,18 @@ export default function App() {
             onUpdateLightingGizmoState={(updates) => setLightingGizmoState((prev) => ({ ...prev, ...updates }))}
             onDropImageFile={(file, coords) => handleImportImageFile(file, undefined, coords)}
           />
+
+          {/* Collapsed Right Dock Quick Pull Tab on Canvas Right Edge */}
+          {!rightPanelOpen && !isFullPageMode && (
+            <button
+              onClick={() => setRightPanelOpen(true)}
+              className="absolute right-0 top-1/2 -translate-y-1/2 z-35 bg-neutral-900/90 hover:bg-neutral-800 text-cyan-300 hover:text-white border-l border-y border-cyan-500/60 shadow-2xl py-3 px-1 rounded-l-xl backdrop-blur-md flex flex-col items-center gap-1 cursor-pointer transition-all active:scale-95 group select-none"
+              title="লেয়ার ও কালার প্যানেল খুলুন (Open Layers & Color)"
+            >
+              <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+              <span className="text-[10px] [writing-mode:vertical-lr] font-bold tracking-wider">লেয়ার / কালার</span>
+            </button>
+          )}
 
           {/* Floating Transform & Mesh Form Control Suite */}
           {transformState.isActive && (
@@ -3407,34 +3464,45 @@ export default function App() {
           )}
         </div>
 
-        {/* Right Side Dock: Color Studio + Layers Panel */}
-        <div className="hidden md:flex w-72 h-full flex-col border-l border-neutral-800 shrink-0 z-20">
-          <ColorPickerPanel
-            color={primaryColor}
-            onChange={handlePrimaryColorChange}
-            recentColors={recentColors}
-          />
-          <div className="flex-1 overflow-hidden">
-            <LayersPanel
-              layers={currentFrame.layers}
-              activeLayerId={activeLayerId}
-              onSelectLayer={setActiveLayerId}
-              onAddLayer={handleAddLayer}
-              onUploadImageToNewLayer={() => handleImportImage()}
-              onUploadImageToLayer={(layerId) => handleImportImage(layerId)}
-              onDropImageFile={(file, layerId) => handleImportImageFile(file, layerId)}
-              onDeleteLayer={handleDeleteLayer}
-              onDuplicateLayer={handleDuplicateLayer}
-              onMergeDown={handleMergeDown}
-              onMergeVisible={handleMergeVisible}
-              onFlattenImage={handleFlattenImage}
-              onToggleClippingMask={handleToggleClippingMask}
-              onToggleLinkLayer={handleToggleLinkLayer}
-              onReorderLayer={handleReorderLayer}
-              onUpdateLayer={handleUpdateLayer}
+        {/* Right Side Dock: Color Studio + Layers Panel (Responsive Drawer on mobile/tablet/fullpage, Dock on desktop) */}
+        {rightPanelOpen && (
+          <>
+            {/* Backdrop overlay to close with 1 tap */}
+            <div
+              className={`fixed inset-0 bg-black/60 backdrop-blur-xs z-40 ${isFullPageMode ? 'block' : 'lg:hidden'}`}
+              onClick={() => setRightPanelOpen(false)}
             />
-          </div>
-        </div>
+            <div className={`fixed right-0 top-0 bottom-0 z-45 w-72 max-w-[85vw] ${isFullPageMode ? '' : 'lg:static lg:w-72 lg:h-full'} flex flex-col border-l border-neutral-800 bg-neutral-900 shadow-2xl shrink-0 animate-in slide-in-from-right duration-150`}>
+              <ColorPickerPanel
+                color={primaryColor}
+                onChange={handlePrimaryColorChange}
+                recentColors={recentColors}
+                onClose={() => setRightPanelOpen(false)}
+              />
+              <div className="flex-1 overflow-hidden">
+                <LayersPanel
+                  layers={currentFrame.layers}
+                  activeLayerId={activeLayerId}
+                  onSelectLayer={setActiveLayerId}
+                  onAddLayer={handleAddLayer}
+                  onUploadImageToNewLayer={() => handleImportImage()}
+                  onUploadImageToLayer={(layerId) => handleImportImage(layerId)}
+                  onDropImageFile={(file, layerId) => handleImportImageFile(file, layerId)}
+                  onDeleteLayer={handleDeleteLayer}
+                  onDuplicateLayer={handleDuplicateLayer}
+                  onMergeDown={handleMergeDown}
+                  onMergeVisible={handleMergeVisible}
+                  onFlattenImage={handleFlattenImage}
+                  onToggleClippingMask={handleToggleClippingMask}
+                  onToggleLinkLayer={handleToggleLinkLayer}
+                  onReorderLayer={handleReorderLayer}
+                  onUpdateLayer={handleUpdateLayer}
+                  onClose={() => setRightPanelOpen(false)}
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* 4. Bottom Dock: Frame-by-Frame Animation Timeline (Collapsible) */}
