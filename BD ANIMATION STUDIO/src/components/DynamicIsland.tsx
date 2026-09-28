@@ -404,7 +404,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
             }
           : undefined
       }
-      className={`fixed z-50 select-none touch-none ${
+      className={`fixed z-50 select-none ${isExpanded ? 'touch-auto' : 'touch-none'} ${
         position ? '' : 'left-1/2 -translate-x-1/2 top-3'
       } ${isExpanded ? 'w-[94vw] max-w-lg' : 'w-auto'}`}
     >
