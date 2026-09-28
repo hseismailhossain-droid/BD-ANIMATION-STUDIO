@@ -379,6 +379,36 @@ export default function App() {
   };
 
   /**
+   * Safe transform updates (protects against NaN / Infinity from touch calculations)
+   */
+  const handleUpdateTransform = useCallback((updates: Partial<ViewportTransform>) => {
+    setTransform((prev) => {
+      const nextZoom =
+        typeof updates.zoom === 'number' && Number.isFinite(updates.zoom) && updates.zoom > 0
+          ? Math.max(0.05, Math.min(32, updates.zoom))
+          : prev.zoom;
+      const nextPanX =
+        typeof updates.panX === 'number' && Number.isFinite(updates.panX)
+          ? updates.panX
+          : prev.panX;
+      const nextPanY =
+        typeof updates.panY === 'number' && Number.isFinite(updates.panY)
+          ? updates.panY
+          : prev.panY;
+      const nextRot =
+        typeof updates.rotation === 'number' && Number.isFinite(updates.rotation)
+          ? updates.rotation
+          : prev.rotation;
+      return {
+        zoom: nextZoom,
+        panX: nextPanX,
+        panY: nextPanY,
+        rotation: nextRot,
+      };
+    });
+  }, []);
+
+  /**
    * Auto fit canvas zoom on start or dimension change (responsive for mobile and desktop)
    */
   const handleFitZoom = useCallback(() => {
@@ -3298,7 +3328,7 @@ export default function App() {
             allFrames={frames}
             activeLayerId={activeLayerId}
             transform={transform}
-            onUpdateTransform={(updates) => setTransform((prev) => ({ ...prev, ...updates }))}
+            onUpdateTransform={handleUpdateTransform}
             activeTool={activeTool}
             brushSettings={brushSettings}
             vectorSettings={vectorSettings}
