@@ -1,17 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { COLOR_PALETTES } from '../constants';
-import { Palette, Copy, Check } from 'lucide-react';
+import { Palette, Copy, Check, X } from 'lucide-react';
 
 interface ColorPickerPanelProps {
   color: string;
   onChange: (hex: string) => void;
   recentColors: string[];
+  onClose?: () => void;
 }
 
 export const ColorPickerPanel: React.FC<ColorPickerPanelProps> = ({
   color,
   onChange,
   recentColors,
+  onClose,
 }) => {
   const [selectedPaletteIndex, setSelectedPaletteIndex] = useState(0);
   const [copied, setCopied] = useState(false);
@@ -65,13 +67,24 @@ export const ColorPickerPanel: React.FC<ColorPickerPanelProps> = ({
           <Palette className="w-3.5 h-3.5 text-cyan-400" />
           <span>Color Studio</span>
         </div>
-        <button
-          onClick={copyHex}
-          className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-white font-mono bg-neutral-800 px-1.5 py-0.5 rounded border border-neutral-700"
-        >
-          {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
-          <span>{color.toUpperCase()}</span>
-        </button>
+        <div className="flex items-center gap-1.5">
+          <button
+            onClick={copyHex}
+            className="flex items-center gap-1 text-[11px] text-neutral-400 hover:text-white font-mono bg-neutral-800 px-1.5 py-0.5 rounded border border-neutral-700 cursor-pointer"
+          >
+            {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+            <span>{color.toUpperCase()}</span>
+          </button>
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+              title="প্যানেল বন্ধ করুন (Close)"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* 2D Saturation-Brightness Box */}
