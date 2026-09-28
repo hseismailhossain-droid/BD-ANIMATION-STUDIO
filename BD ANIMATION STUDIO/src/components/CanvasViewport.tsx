@@ -8,6 +8,10 @@ import {
   Crosshair,
   Sparkles,
   X,
+  Maximize,
+  Minimize2,
+  Layers as LayersIcon,
+  Palette,
 } from 'lucide-react';
 import {
   Layer,
@@ -86,6 +90,11 @@ interface CanvasViewportProps {
   canPaste?: boolean;
   onDeleteSelection?: () => void;
   onClearSelection?: () => void;
+  isFullPageMode?: boolean;
+  onToggleFullPage?: () => void;
+  rightPanelOpen?: boolean;
+  onToggleRightPanel?: () => void;
+  onFitZoom?: () => void;
   onDropImageFile?: (file: File, coords: { x: number; y: number }) => void;
 }
 
@@ -139,6 +148,11 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   canPaste = false,
   onDeleteSelection,
   onClearSelection,
+  isFullPageMode = false,
+  onToggleFullPage,
+  rightPanelOpen = true,
+  onToggleRightPanel,
+  onFitZoom,
   onDropImageFile,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -2961,7 +2975,13 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       )}
 
       {/* Floating Canvas Quick Viewport Tooltip */}
-      <div className="absolute bottom-3 left-3 bg-neutral-900/90 backdrop-blur border border-neutral-800 rounded-lg px-2.5 py-1 text-[11px] font-mono text-neutral-400 flex items-center gap-2 shadow-lg z-20 select-none">
+      <div
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onClick={(e) => e.stopPropagation()}
+        className="absolute bottom-3 left-3 bg-neutral-900/90 backdrop-blur border border-neutral-800 rounded-lg px-2.5 py-1 text-[11px] font-mono text-neutral-400 flex items-center gap-2 shadow-lg z-30 select-none pointer-events-auto"
+      >
         <span>Zoom: {Math.round(transform.zoom * 100)}%</span>
         <span>•</span>
         <span>
@@ -2977,7 +2997,12 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
         )}
         <span>•</span>
         <button
-          onClick={() => setCrispMode((prev) => !prev)}
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setCrispMode((prev) => !prev);
+          }}
           className={`flex items-center gap-1 font-sans text-[11px] px-1.5 py-0.5 rounded cursor-pointer transition-colors ${
             crispMode
               ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/80'
@@ -2986,9 +3011,117 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
           title="ড্রইং কোয়ালিটি রক্ষা (ক্রিস্প পিক্সেল / স্মুথ ফিল্টার মোড পরিবর্তন)"
         >
           <Sparkles className="w-3 h-3 text-cyan-400" />
-          <span>{crispMode ? 'Sharp HD (ক্রিস্প)' : 'Smooth HD (স্মুথ)'}</span>
+          <span>{crispMode ? 'Sharp HD' : 'Smooth HD'}</span>
         </button>
+
+        {onFitZoom && (
+          <>
+            <span>•</span>
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onFitZoom();
+              }}
+              className="flex items-center gap-1 font-sans text-[11px] px-1.5 py-0.5 rounded cursor-pointer transition-colors bg-neutral-800/80 text-neutral-300 hover:text-white active:scale-95"
+              title="ক্যানভাস স্ক্রিনে ফিট করুন (Fit Canvas to Screen)"
+            >
+              <Maximize className="w-3 h-3 text-cyan-400" />
+              <span>ফিট</span>
+            </button>
+          </>
+        )}
+
+        {onToggleFullPage && (
+          <>
+            <span>•</span>
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFullPage();
+              }}
+              className={`flex items-center gap-1 font-sans text-[11px] px-2 py-0.5 rounded font-bold cursor-pointer transition-all active:scale-95 ${
+                isFullPageMode
+                  ? 'bg-amber-500 text-black shadow ring-1 ring-amber-300 animate-pulse'
+                  : 'bg-amber-950/80 text-amber-300 hover:text-white border border-amber-600/40'
+              }`}
+              title="ফুল পেইজ ড্রইং মোড (Full Page Zen Drawing)"
+            >
+              {isFullPageMode ? <Minimize2 className="w-3 h-3" /> : <Maximize className="w-3 h-3" />}
+              <span>{isFullPageMode ? 'নরমাল' : 'ফুল পেইজ'}</span>
+            </button>
+          </>
+        )}
+
+        {onToggleRightPanel && (
+          <>
+            <span>•</span>
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleRightPanel();
+              }}
+              className={`flex items-center gap-1 font-sans text-[11px] px-2 py-0.5 rounded cursor-pointer transition-colors active:scale-95 ${
+                rightPanelOpen
+                  ? 'bg-cyan-950 text-cyan-300 border border-cyan-700/60'
+                  : 'bg-neutral-800/80 text-neutral-400 hover:text-white'
+              }`}
+              title="লেয়ার ও কালার প্যানেল খুলুন/বন্ধ করুন"
+            >
+              <LayersIcon className="w-3 h-3 text-cyan-400" />
+              <span>লেয়ার</span>
+            </button>
+          </>
+        )}
       </div>
+
+      {/* Floating Zen Mode / Full Page Exit & Quick Actions Pill */}
+      {isFullPageMode && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+          className="absolute top-3 right-3 z-45 flex items-center gap-2 animate-in fade-in duration-200 select-none pointer-events-auto"
+        >
+          {onToggleRightPanel && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleRightPanel();
+              }}
+              className="px-3 py-1.5 rounded-full bg-neutral-900/90 hover:bg-neutral-800 text-cyan-300 border border-cyan-500/50 shadow-2xl backdrop-blur-md text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95"
+              title="লেয়ার ও কালার স্টুডিও"
+            >
+              <LayersIcon className="w-3.5 h-3.5" />
+              <span>লেয়ার</span>
+            </button>
+          )}
+
+          {onToggleFullPage && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFullPage();
+              }}
+              className="px-3.5 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs flex items-center gap-1.5 shadow-2xl cursor-pointer active:scale-95 ring-2 ring-amber-300"
+              title="ফুল পেইজ মোড বন্ধ করুন (Exit Full Screen)"
+            >
+              <Minimize2 className="w-4 h-4" />
+              <span>নরমাল ভিউ</span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Floating Quick Paste Action Button on Canvas (Visible when clipboard has content) */}
       {canPaste && (
