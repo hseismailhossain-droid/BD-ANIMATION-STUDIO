@@ -30,6 +30,8 @@ import {
   Sun,
   Mic,
   Smartphone,
+  Minimize2,
+  Palette,
 } from 'lucide-react';
 import { CanvasConfig, ViewportTransform } from '../types';
 
@@ -81,6 +83,10 @@ interface TopMenuBarProps {
   onCut?: () => void;
   onDuplicate?: () => void;
   canPaste?: boolean;
+  isFullPageMode?: boolean;
+  onToggleFullPageMode?: () => void;
+  rightPanelOpen?: boolean;
+  onToggleRightPanel?: () => void;
 }
 
 export const TopMenuBar: React.FC<TopMenuBarProps> = ({
@@ -131,6 +137,10 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
   onCut,
   onDuplicate,
   canPaste = false,
+  isFullPageMode = false,
+  onToggleFullPageMode,
+  rightPanelOpen = true,
+  onToggleRightPanel,
 }) => {
   const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
@@ -673,6 +683,40 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
         >
           <Maximize className="w-3.5 h-3.5" />
         </button>
+
+        <div className="h-4 w-px bg-neutral-800 mx-1" />
+
+        {/* Full Page Zen Drawing Mode Button */}
+        {onToggleFullPageMode && (
+          <button
+            onClick={onToggleFullPageMode}
+            title={isFullPageMode ? 'ফুল স্ক্রিন বন্ধ করুন (Exit Full Screen)' : 'ফুল পেইজ ড্রইং মোড (Full Page Zen Drawing)'}
+            className={`px-2.5 py-1 rounded flex items-center gap-1.5 text-[11px] font-bold transition-all cursor-pointer ${
+              isFullPageMode
+                ? 'bg-amber-500 text-black shadow-md ring-1 ring-amber-300 animate-pulse'
+                : 'bg-neutral-800 hover:bg-amber-950/80 text-amber-300 hover:text-amber-200 border border-amber-500/40'
+            }`}
+          >
+            {isFullPageMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{isFullPageMode ? 'নরমাল ভিউ' : 'ফুল পেইজ'}</span>
+          </button>
+        )}
+
+        {/* Toggle Right Dock (Color Studio & Layers) */}
+        {onToggleRightPanel && (
+          <button
+            onClick={onToggleRightPanel}
+            title="লেয়ার ও কালার প্যানেল খুলুন/বন্ধ করুন (Toggle Layers & Color Dock)"
+            className={`px-2.5 py-1 rounded flex items-center gap-1.5 text-[11px] font-semibold transition-all cursor-pointer ${
+              rightPanelOpen
+                ? 'bg-cyan-950 text-cyan-300 border border-cyan-700/60'
+                : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white border border-neutral-700'
+            }`}
+          >
+            <LayersIcon className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">লেয়ার/কালার</span>
+          </button>
+        )}
 
         <div className="h-4 w-px bg-neutral-800 mx-1" />
 
