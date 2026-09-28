@@ -99,9 +99,9 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({
   ];
 
   return (
-    <aside className="hidden sm:flex w-12 bg-neutral-900 border-r border-neutral-800 flex-col items-center py-2 select-none z-20 justify-between">
-      {/* Tool buttons list */}
-      <div className="flex flex-col items-center gap-1 w-full px-1">
+    <aside className="flex w-10 sm:w-12 h-full bg-neutral-900 border-r border-neutral-800 flex-col items-center py-1 select-none z-20 justify-between shrink-0">
+      {/* Tool buttons list with smooth touch scrolling */}
+      <div className="flex-1 w-full overflow-y-auto overflow-x-hidden flex flex-col items-center gap-0.5 sm:gap-1 px-0.5 sm:px-1 scrollbar-none touch-pan-y">
         {tools.map((t) => {
           const isActive = t.isActive !== undefined ? t.isActive : activeTool === t.id;
           return (
@@ -115,7 +115,7 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({
                 }
               }}
               title={`${t.label} (${t.shortcut})`}
-              className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all relative group ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 shrink-0 rounded-lg flex items-center justify-center transition-all relative group cursor-pointer ${
                 t.id === 'glow-pencil' && isActive
                   ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-black shadow-lg shadow-amber-900/50 ring-1 ring-amber-300'
                   : isActive
@@ -128,7 +128,7 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({
               {t.icon}
 
               {/* Tooltip on hover */}
-              <div className="absolute left-11 bg-neutral-950 text-neutral-200 border border-neutral-800 text-[11px] px-2 py-1 rounded shadow-xl whitespace-nowrap hidden group-hover:flex items-center gap-1.5 z-50 pointer-events-none">
+              <div className="absolute left-10 sm:left-11 bg-neutral-950 text-neutral-200 border border-neutral-800 text-[11px] px-2 py-1 rounded shadow-xl whitespace-nowrap hidden group-hover:flex items-center gap-1.5 z-50 pointer-events-none">
                 <span>{t.label}</span>
                 <span className="text-neutral-500 font-mono text-[10px]">[{t.shortcut}]</span>
               </div>
@@ -138,17 +138,17 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({
       </div>
 
       {/* Color Swatches & Swap at the bottom */}
-      <div className="flex flex-col items-center pb-2 w-full pt-2 border-t border-neutral-800/80">
-        <div className="relative w-8 h-8 my-1">
+      <div className="shrink-0 flex flex-col items-center pb-1 w-full pt-1 border-t border-neutral-800/80 bg-neutral-900 z-10">
+        <div className="relative w-7 h-7 sm:w-8 sm:h-8 my-0.5 sm:my-1">
           {/* Secondary Color Chip */}
           <div
-            className="absolute bottom-0 right-0 w-5 h-5 rounded-sm border border-neutral-700 shadow cursor-pointer"
+            className="absolute bottom-0 right-0 w-4 h-4 sm:w-5 sm:h-5 rounded-sm border border-neutral-700 shadow cursor-pointer"
             style={{ backgroundColor: secondaryColor }}
             title={`Background Color: ${secondaryColor}`}
           />
           {/* Primary Color Chip */}
           <label
-            className="absolute top-0 left-0 w-5 h-5 rounded-sm border border-white shadow-md cursor-pointer block overflow-hidden z-10"
+            className="absolute top-0 left-0 w-4 h-4 sm:w-5 sm:h-5 rounded-sm border border-white shadow-md cursor-pointer block overflow-hidden z-10"
             style={{ backgroundColor: primaryColor }}
             title={`Foreground Color: ${primaryColor} (Click to change)`}
           >
@@ -162,20 +162,20 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({
         </div>
 
         {/* Color Switchers */}
-        <div className="flex items-center gap-1 mt-1">
+        <div className="flex items-center gap-0.5 mt-0.5">
           <button
             onClick={onSwapColors}
             title="Swap Colors (X)"
-            className="p-1 text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800 rounded transition-colors"
+            className="p-1 text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800 rounded transition-colors cursor-pointer"
           >
-            <ArrowLeftRight className="w-3 h-3" />
+            <ArrowLeftRight className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
           </button>
           <button
             onClick={onResetColors}
             title="Default Black & White (D)"
-            className="p-1 text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800 rounded transition-colors"
+            className="p-1 text-neutral-500 hover:text-neutral-200 hover:bg-neutral-800 rounded transition-colors cursor-pointer"
           >
-            <RotateCcw className="w-3 h-3" />
+            <RotateCcw className="w-2.5 h-2.5 sm:w-3 sm:h-3" />
           </button>
         </div>
       </div>
