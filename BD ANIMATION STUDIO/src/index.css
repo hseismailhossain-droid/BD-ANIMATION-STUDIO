@@ -1,0 +1,84 @@
+@import "tailwindcss";
+
+html, body, #root {
+  overscroll-behavior: none;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+}
+
+@layer utilities {
+  /* Photoshop-style transparency checkerboard */
+  .transparency-grid {
+    background-color: #ffffff;
+    background-image: linear-gradient(45deg, #e5e7eb 25%, transparent 25%),
+      linear-gradient(-45deg, #e5e7eb 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #e5e7eb 75%),
+      linear-gradient(-45deg, transparent 75%, #e5e7eb 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+  }
+
+  .transparency-grid-dark {
+    background-color: #1e1e24;
+    background-image: linear-gradient(45deg, #15151a 25%, transparent 25%),
+      linear-gradient(-45deg, #15151a 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, #15151a 75%),
+      linear-gradient(-45deg, transparent 75%, #15151a 75%);
+    background-size: 16px 16px;
+    background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+  }
+
+  /* Custom dark scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #121214;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #2a2b33;
+    border-radius: 3px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #3e404d;
+  }
+}
+
+/* Prevent default touch behaviors and preserve maximum drawing fidelity */
+canvas {
+  touch-action: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Sharp drawing quality classes */
+.canvas-crisp {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+}
+
+.canvas-smooth {
+  image-rendering: auto;
+}
+
+/* Marching ants animation for selection marquee */
+@keyframes marchingAnts {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 16;
+  }
+}
+
+.marching-ants {
+  stroke-dasharray: 4 4;
+  animation: marchingAnts 0.6s linear infinite;
+}

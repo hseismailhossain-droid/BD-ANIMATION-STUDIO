@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#1e1b4b" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="glowMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#818cf8" />
+      <stop offset="100%" stop-color="#c084fc" />
+    </linearGradient>
+    <linearGradient id="amberGoldMask" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#fbbf24" />
+    </linearGradient>
+  </defs>
+
+  <!-- Maskable full bleed background (safe zone padding: 15%) -->
+  <rect width="512" height="512" fill="url(#bgMask)" />
+
+  <g transform="translate(51, 51) scale(0.8)">
+    <rect x="96" y="96" width="320" height="320" rx="36" fill="#18181b" stroke="#3f3f46" stroke-width="4" />
+    <path d="M 120 340 C 180 260, 240 380, 320 280 C 360 230, 392 240, 400 200" fill="none" stroke="url(#glowMask)" stroke-width="18" stroke-linecap="round" />
+    <path d="M 330 140 L 390 200 L 260 330 L 210 335 L 215 285 Z" fill="url(#glowMask)" />
+    <polygon points="210,335 240,310 235,330" fill="#ffffff" />
+    <circle cx="215" cy="330" r="4" fill="#020617" />
+    <rect x="290" y="370" width="136" height="52" rx="16" fill="url(#amberGoldMask)" />
+    <text x="358" y="406" font-family="system-ui, sans-serif" font-weight="900" font-size="28" fill="#000000" text-anchor="middle">8K PRO</text>
+  </g>
+</svg>
