@@ -821,8 +821,9 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       activeTouchPointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
       if (activeTouchPointers.current.size >= 2) {
         const points = Array.from(activeTouchPointers.current.values());
-        initialPinchDist.current = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
-        initialPinchZoom.current = transform.zoom;
+        const dist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+        initialPinchDist.current = dist > 5 ? dist : 5;
+        initialPinchZoom.current = Number.isFinite(transform.zoom) && transform.zoom > 0 ? transform.zoom : 1;
         lastPanPos.current = {
           x: (points[0].x + points[1].x) / 2,
           y: (points[0].y + points[1].y) / 2,
@@ -839,7 +840,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       return;
     }
 
-    if (e.button !== 0) return; // Only primary button for drawing
+    if (e.button !== 0 && e.pointerType !== 'touch') return; // Only primary button or single touch for drawing
     try {
       e.currentTarget.setPointerCapture?.(e.pointerId);
     } catch {
@@ -1483,36 +1484,45 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     // Multi-touch pinch-to-zoom and two-finger pan on touch devices
     if (e.pointerType === 'touch') {
       activeTouchPointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (activeTouchPointers.current.size >= 2 && initialPinchDist.current) {
+      if (activeTouchPointers.current.size >= 2) {
         const points = Array.from(activeTouchPointers.current.values());
-        const currentDist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
-        const scale = currentDist / initialPinchDist.current;
-        const newZoom = Math.max(0.05, Math.min(32, initialPinchZoom.current * scale));
+        if (points.length >= 2) {
+          const currentDist = Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+          const baseDist = initialPinchDist.current && initialPinchDist.current > 5 ? initialPinchDist.current : 5;
+          const scale = currentDist / baseDist;
 
-        const midX = (points[0].x + points[1].x) / 2;
-        const midY = (points[0].y + points[1].y) / 2;
+          if (Number.isFinite(scale) && scale > 0) {
+            const baseZoom = Number.isFinite(initialPinchZoom.current) && initialPinchZoom.current > 0
+              ? initialPinchZoom.current
+              : transform.zoom;
+            const newZoom = Math.max(0.05, Math.min(32, baseZoom * scale));
 
-        if (lastPanPos.current) {
-          const dx = midX - lastPanPos.current.x;
-          const dy = midY - lastPanPos.current.y;
-          lastPanPos.current = { x: midX, y: midY };
-          if (transformRaf.current === null) {
-            transformRaf.current = requestAnimationFrame(() => {
-              onUpdateTransform({
-                zoom: newZoom,
-                panX: transform.panX + dx,
-                panY: transform.panY + dy,
-              });
-              transformRaf.current = null;
-            });
-          }
-        } else {
-          lastPanPos.current = { x: midX, y: midY };
-          if (transformRaf.current === null) {
-            transformRaf.current = requestAnimationFrame(() => {
-              onUpdateTransform({ zoom: newZoom });
-              transformRaf.current = null;
-            });
+            const midX = (points[0].x + points[1].x) / 2;
+            const midY = (points[0].y + points[1].y) / 2;
+
+            if (lastPanPos.current) {
+              const dx = midX - lastPanPos.current.x;
+              const dy = midY - lastPanPos.current.y;
+              lastPanPos.current = { x: midX, y: midY };
+              if (transformRaf.current === null) {
+                transformRaf.current = requestAnimationFrame(() => {
+                  onUpdateTransform({
+                    zoom: newZoom,
+                    panX: transform.panX + dx,
+                    panY: transform.panY + dy,
+                  });
+                  transformRaf.current = null;
+                });
+              }
+            } else {
+              lastPanPos.current = { x: midX, y: midY };
+              if (transformRaf.current === null) {
+                transformRaf.current = requestAnimationFrame(() => {
+                  onUpdateTransform({ zoom: newZoom });
+                  transformRaf.current = null;
+                });
+              }
+            }
           }
         }
         return;
@@ -2114,9 +2124,50 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   };
 
   /**
+   * Pointer Cleanup Helper (Guarantees multi-touch & pointer capture cleanup on mobile)
+   */
+  const cleanupPointer = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') {
+      activeTouchPointers.current.delete(e.pointerId);
+      if (activeTouchPointers.current.size < 2) {
+        initialPinchDist.current = null;
+      }
+      if (activeTouchPointers.current.size === 0) {
+        lastPanPos.current = null;
+      }
+    }
+
+    try {
+      if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+        e.currentTarget.releasePointerCapture?.(e.pointerId);
+      }
+    } catch {
+      // Ignore
+    }
+  };
+
+  /**
+   * Pointer Cancel Event (Mobile notification, palm rejection, gesture interrupt)
+   */
+  const handlePointerCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    cleanupPointer(e);
+    isPanning.current = false;
+    isInteracting.current = false;
+    lastPanPos.current = null;
+    activeDrawingLayerRef.current = null;
+    if (activeMeshNodeDrag.current) activeMeshNodeDrag.current = null;
+    if (activePerspectiveCornerDrag.current !== null) activePerspectiveCornerDrag.current = null;
+    if (layerTransformDrag.current) layerTransformDrag.current = null;
+    if (lightingDrag.current) lightingDrag.current = null;
+  };
+
+  /**
    * Pointer Up / End Event
    */
   const handlePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Unconditionally clean up touch tracking and release pointer capture FIRST!
+    cleanupPointer(e);
+
     isPanning.current = false;
     lastPanPos.current = null;
 
@@ -2340,21 +2391,6 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       lassoPoints.current = [];
     }
 
-    // Clean up touch pointers
-    if (e.pointerType === 'touch') {
-      activeTouchPointers.current.delete(e.pointerId);
-      if (activeTouchPointers.current.size < 2) {
-        initialPinchDist.current = null;
-        lastPanPos.current = null;
-      }
-    }
-
-    try {
-      e.currentTarget.releasePointerCapture?.(e.pointerId);
-    } catch {
-      // Ignore
-    }
-
     // Commit moved path anchor node
     if (anchorDrag.current) {
       if (onMoveVectorShape && anchorDrag.current.shape) {
@@ -2420,8 +2456,13 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
-      onPointerCancel={handlePointerUp}
+      onPointerLeave={(e) => {
+        // Do not interrupt touch drawing on screen edges
+        if (e.pointerType !== 'touch') {
+          handlePointerUp(e);
+        }
+      }}
+      onPointerCancel={handlePointerCancel}
       onWheel={handleWheel}
       onContextMenu={(e) => {
         e.preventDefault();
