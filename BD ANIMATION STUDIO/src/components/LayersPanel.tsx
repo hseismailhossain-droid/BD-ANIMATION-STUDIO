@@ -28,6 +28,7 @@ import {
   Minimize2,
   Upload,
   Image as ImageIcon,
+  X,
 } from 'lucide-react';
 
 interface LayersPanelProps {
@@ -47,6 +48,7 @@ interface LayersPanelProps {
   onToggleLinkLayer?: (id: string) => void;
   onReorderLayer: (fromIndex: number, toIndex: number) => void;
   onUpdateLayer: (id: string, updates: Partial<Layer>) => void;
+  onClose?: () => void;
 }
 
 export const LayersPanel: React.FC<LayersPanelProps> = ({
@@ -66,6 +68,7 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   onToggleLinkLayer,
   onReorderLayer,
   onUpdateLayer,
+  onClose,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
@@ -143,6 +146,15 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
               className="p-1 rounded bg-neutral-800 hover:bg-emerald-600/90 text-emerald-300 hover:text-white flex items-center gap-1 text-[11px] px-1.5 transition-colors font-medium shadow-xs"
             >
               <Upload className="w-3 h-3 text-emerald-400" /> +ইমেজ
+            </button>
+          )}
+          {onClose && (
+            <button
+              onClick={onClose}
+              className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors cursor-pointer ml-1"
+              title="প্যানেল বন্ধ করুন (Close)"
+            >
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
