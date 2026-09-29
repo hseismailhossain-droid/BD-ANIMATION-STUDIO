@@ -153,8 +153,51 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
   const is8K = config.width >= 7680 || config.height >= 4320;
   const is4K = config.width >= 3840 && !is8K;
 
+  const headerRef = React.useRef<HTMLElement | null>(null);
+  const dragScrollRef = React.useRef<{ isDown: boolean; startX: number; scrollLeft: number }>({
+    isDown: false,
+    startX: 0,
+    scrollLeft: 0,
+  });
+
+  const handleHeaderMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('input') || target.closest('select')) {
+      return;
+    }
+    const header = headerRef.current;
+    if (!header) return;
+    dragScrollRef.current = {
+      isDown: true,
+      startX: e.pageX - header.offsetLeft,
+      scrollLeft: header.scrollLeft,
+    };
+  };
+
+  const handleHeaderMouseMove = (e: React.MouseEvent) => {
+    if (!dragScrollRef.current.isDown) return;
+    const header = headerRef.current;
+    if (!header) return;
+    e.preventDefault();
+    const x = e.pageX - header.offsetLeft;
+    const walk = (x - dragScrollRef.current.startX) * 1.5;
+    header.scrollLeft = dragScrollRef.current.scrollLeft - walk;
+  };
+
+  const handleHeaderMouseUpOrLeave = () => {
+    dragScrollRef.current.isDown = false;
+  };
+
   return (
-    <header className="h-10 bg-neutral-900 border-b border-neutral-800 flex items-center justify-between px-3 text-xs select-none z-30 relative overflow-x-auto whitespace-nowrap no-scrollbar gap-4">
+    <header
+      ref={headerRef}
+      onMouseDown={handleHeaderMouseDown}
+      onMouseMove={handleHeaderMouseMove}
+      onMouseUp={handleHeaderMouseUpOrLeave}
+      onMouseLeave={handleHeaderMouseUpOrLeave}
+      style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch' }}
+      className="h-10 bg-neutral-900 border-b border-neutral-800 flex items-center justify-between px-3 text-xs select-none z-30 relative overflow-x-auto whitespace-nowrap scroll-touch gap-4 cursor-grab active:cursor-grabbing"
+    >
       {/* Left branding & menus */}
       <div className="flex items-center gap-1">
         {/* App Logo & Title */}
