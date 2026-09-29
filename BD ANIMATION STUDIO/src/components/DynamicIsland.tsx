@@ -93,6 +93,7 @@ interface DynamicIslandProps {
   selectedVectorShapeId?: string;
   cloneSettings?: CloneSettings;
   onToggleCloneSampling?: () => void;
+  isFullPageMode?: boolean;
 }
 
 export const DynamicIsland: React.FC<DynamicIslandProps> = ({
@@ -131,6 +132,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   selectedVectorShapeId,
   cloneSettings,
   onToggleCloneSampling,
+  isFullPageMode = false,
 }) => {
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'tools' | 'audio' | 'anim' | 'color' | 'actions'>('tools');
@@ -202,7 +204,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
 
   // Pointer Drag Handlers (supports Touch & Mouse smoothly with window listeners)
   const handlePointerDown = (e: React.PointerEvent) => {
-    if (e.button !== 0) return;
+    if (e.button !== 0 && e.pointerType !== 'touch') return;
     const target = e.target as HTMLElement;
     // Don't start drag if clicking interactive elements
     if (
@@ -405,7 +407,11 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           : undefined
       }
       className={`fixed z-50 select-none ${isExpanded ? 'touch-auto' : 'touch-none'} ${
-        position ? '' : 'left-1/2 -translate-x-1/2 top-3'
+        position
+          ? ''
+          : isFullPageMode
+          ? 'left-1/2 -translate-x-1/2 top-3'
+          : 'left-1/2 -translate-x-1/2 top-20 sm:top-[76px]'
       } ${isExpanded ? 'w-[94vw] max-w-lg' : 'w-auto'}`}
     >
       {/* COLLAPSED STATE: Sleek Apple-style Pill Capsule (Draggable & Clickable) */}
@@ -420,9 +426,15 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
           title="মাউস বা হাত দিয়ে চেপে ধরে যেকোনো জায়গায় ড্র্যাগ করে সরান (Drag anywhere / Tap to open)"
         >
           {/* Visual Grip Handle */}
-          <div className="flex items-center gap-1 text-cyan-400 bg-cyan-950/80 px-1.5 py-0.5 rounded-full border border-cyan-700/60 font-semibold text-[10px]">
+          <div
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              handlePointerDown(e);
+            }}
+            className="flex items-center gap-1 text-cyan-400 bg-cyan-950/90 px-2 py-0.5 rounded-full border border-cyan-700/80 font-bold text-[10px] cursor-grab active:cursor-grabbing touch-none select-none shadow-sm"
+          >
             <GripHorizontal className="w-3.5 h-3.5" />
-            <span className="hidden sm:inline">মুভ</span>
+            <span>মুভ</span>
           </div>
 
           {/* Active Tool Icon */}
