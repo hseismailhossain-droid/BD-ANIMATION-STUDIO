@@ -3593,6 +3593,7 @@ export default function App() {
           onToggleCloneSampling={() =>
             setCloneSettings((prev) => ({ ...prev, isSettingSource: !prev.isSettingSource }))
           }
+          isFullPageMode={isFullPageMode}
         />
       )}
 
