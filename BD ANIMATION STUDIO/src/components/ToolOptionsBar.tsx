@@ -191,8 +191,51 @@ export const ToolOptionsBar: React.FC<ToolOptionsBarProps> = ({
     activeTool === 'vector-shape' ||
     activeTool === 'vector-select';
 
+  const barRef = React.useRef<HTMLDivElement | null>(null);
+  const dragScrollRef = React.useRef<{ isDown: boolean; startX: number; scrollLeft: number }>({
+    isDown: false,
+    startX: 0,
+    scrollLeft: 0,
+  });
+
+  const handleBarMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('input') || target.closest('select')) {
+      return;
+    }
+    const bar = barRef.current;
+    if (!bar) return;
+    dragScrollRef.current = {
+      isDown: true,
+      startX: e.pageX - bar.offsetLeft,
+      scrollLeft: bar.scrollLeft,
+    };
+  };
+
+  const handleBarMouseMove = (e: React.MouseEvent) => {
+    if (!dragScrollRef.current.isDown) return;
+    const bar = barRef.current;
+    if (!bar) return;
+    e.preventDefault();
+    const x = e.pageX - bar.offsetLeft;
+    const walk = (x - dragScrollRef.current.startX) * 1.5;
+    bar.scrollLeft = dragScrollRef.current.scrollLeft - walk;
+  };
+
+  const handleBarMouseUpOrLeave = () => {
+    dragScrollRef.current.isDown = false;
+  };
+
   return (
-    <div className="h-9 bg-neutral-925 border-b border-neutral-800 flex items-center justify-between px-3 text-xs text-neutral-300 select-none overflow-x-auto whitespace-nowrap scrollbar-thin">
+    <div
+      ref={barRef}
+      onMouseDown={handleBarMouseDown}
+      onMouseMove={handleBarMouseMove}
+      onMouseUp={handleBarMouseUpOrLeave}
+      onMouseLeave={handleBarMouseUpOrLeave}
+      style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch' }}
+      className="h-9 bg-neutral-925 border-b border-neutral-800 flex items-center justify-between px-3 text-xs text-neutral-300 select-none overflow-x-auto whitespace-nowrap scroll-touch cursor-grab active:cursor-grabbing"
+    >
       {/* Options tailored to active tool */}
       <div className="flex items-center gap-3">
         {/* Transform / Move Tool (Photoshop V) */}
