@@ -35,9 +35,12 @@ interface ToolsSidebarProps {
   onPrimaryColorChange: (color: string) => void;
   brushPreset?: string;
   onSelectGlowPencil?: () => void;
+  gridEnabled?: boolean;
+  onToggleGrid?: () => void;
+  onOpenGridStudio?: () => void;
 }
 
-export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({
+export const ToolsSidebar: React.FC<ToolsSidebarProps> = React.memo(({
   activeTool,
   onSelectTool,
   primaryColor,
@@ -47,6 +50,9 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({
   onPrimaryColorChange,
   brushPreset,
   onSelectGlowPencil,
+  gridEnabled,
+  onToggleGrid,
+  onOpenGridStudio,
 }) => {
   const isGlowPencilActive = activeTool === 'brush' && brushPreset === 'glow-pencil';
 
@@ -96,6 +102,16 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({
     { id: 'eyedropper', label: 'Eyedropper (I)', shortcut: 'I', icon: <Pipette className="w-4 h-4" /> },
     { id: 'hand', label: 'Hand Tool (Pan Canvas)', shortcut: 'H / Space', icon: <Hand className="w-4 h-4" /> },
     { id: 'zoom', label: 'Zoom Tool (Click / Alt-Click / Scrubby)', shortcut: 'Z', icon: <Search className="w-4 h-4" /> },
+    {
+      id: 'grid' as any,
+      label: gridEnabled ? 'গ্রিড ও গাইড (চালু আছে - Ctrl+\')' : 'গ্রিড ও গাইড সিস্টেম (Ctrl+\')',
+      shortcut: "Ctrl+'",
+      icon: <Grid3X3 className={`w-4 h-4 ${gridEnabled ? 'text-cyan-300' : ''}`} />,
+      isActive: gridEnabled,
+      onClick: () => {
+        if (onToggleGrid) onToggleGrid();
+      },
+    },
   ];
 
   return (
@@ -181,4 +197,4 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = ({
       </div>
     </aside>
   );
-};
+});
