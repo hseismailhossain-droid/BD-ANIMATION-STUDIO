@@ -48,10 +48,12 @@ interface LayersPanelProps {
   onToggleLinkLayer?: (id: string) => void;
   onReorderLayer: (fromIndex: number, toIndex: number) => void;
   onUpdateLayer: (id: string, updates: Partial<Layer>) => void;
+  onToggleAllLayersVisibility?: () => void;
+  onNudgeLayer?: (dx: number, dy: number, moveAll?: boolean) => void;
   onClose?: () => void;
 }
 
-export const LayersPanel: React.FC<LayersPanelProps> = ({
+export const LayersPanel: React.FC<LayersPanelProps> = React.memo(({
   layers,
   activeLayerId,
   onSelectLayer,
@@ -68,6 +70,8 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
   onToggleLinkLayer,
   onReorderLayer,
   onUpdateLayer,
+  onToggleAllLayersVisibility,
+  onNudgeLayer,
   onClose,
 }) => {
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -121,6 +125,31 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
         <div className="flex items-center gap-1.5">
           <LayersIcon className="w-3.5 h-3.5 text-cyan-400" />
           <span>Layers ({layers.length})</span>
+          <button
+            onClick={() => {
+              if (onToggleAllLayersVisibility) {
+                onToggleAllLayersVisibility();
+              } else {
+                const allVisible = layers.every((l) => l.visible);
+                layers.forEach((l) => onUpdateLayer(l.id, { visible: !allVisible }));
+              }
+            }}
+            title={layers.every((l) => l.visible) ? 'সব লেয়ার হাইড করুন (Hide All Layers)' : 'সব লেয়ার শো করুন (Show All Layers)'}
+            className={`p-1 rounded transition-colors cursor-pointer flex items-center gap-1 text-[11px] ${
+              layers.every((l) => l.visible)
+                ? 'hover:bg-neutral-800 text-neutral-400 hover:text-cyan-300'
+                : 'bg-amber-950 text-amber-300 border border-amber-600/50 font-bold px-1.5'
+            }`}
+          >
+            {layers.every((l) => l.visible) ? (
+              <Eye className="w-3.5 h-3.5" />
+            ) : (
+              <>
+                <EyeOff className="w-3.5 h-3.5 text-amber-400" />
+                <span className="hidden sm:inline">লুকানো</span>
+              </>
+            )}
+          </button>
         </div>
 
         {/* Quick Add Buttons */}
@@ -494,4 +523,4 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
       </div>
     </div>
   );
-};
+});
