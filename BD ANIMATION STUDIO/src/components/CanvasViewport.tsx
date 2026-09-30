@@ -12,7 +12,20 @@ import {
   Minimize2,
   Layers as LayersIcon,
   Palette,
+  Grid as GridIcon,
+  Magnet,
+  Sliders,
+  Paintbrush,
+  Eraser,
+  Hand,
+  RotateCcw,
+  RotateCw,
+  Eye,
+  EyeOff,
+  Compass,
+  Move,
 } from 'lucide-react';
+import { DirectionalMovePad } from './DirectionalMovePad';
 import {
   Layer,
   AnimationFrame,
@@ -30,6 +43,7 @@ import {
   CloneSettings,
   MeshSettings,
   ZoomSettings,
+  GridConfig,
 } from '../types';
 import { BrushRenderer, StrokePoint } from '../engine/brushEngine';
 import { VectorEngine } from '../engine/vectorEngine';
@@ -68,6 +82,9 @@ interface CanvasViewportProps {
   selectedVectorShapeId?: string;
   onSelectVectorShapeId?: (id?: string) => void;
   gridEnabled: boolean;
+  gridConfig?: GridConfig;
+  onToggleGrid?: () => void;
+  onOpenGridStudio?: () => void;
   onCommitLayerTransform?: (dx: number, dy: number) => void;
   onMoveVectorShape?: (shapeId: string, dx: number, dy: number) => void;
   onDeleteSelectedShape?: () => void;
@@ -96,9 +113,17 @@ interface CanvasViewportProps {
   onToggleRightPanel?: () => void;
   onFitZoom?: () => void;
   onDropImageFile?: (file: File, coords: { x: number; y: number }) => void;
+  onSelectTool?: (tool: ToolType) => void;
+  onUndo?: () => void;
+  onRedo?: () => void;
+  canUndo?: boolean;
+  canRedo?: boolean;
+  onToggleAllLayersVisibility?: () => void;
+  onNudgeLayerContent?: (dx: number, dy: number, moveAll?: boolean) => void;
+  onReorderLayer?: (fromIndex: number, toIndex: number) => void;
 }
 
-export const CanvasViewport: React.FC<CanvasViewportProps> = ({
+export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
   config,
   currentFrame,
   allFrames,
@@ -126,7 +151,13 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   selectedVectorShapeId,
   onSelectVectorShapeId,
   gridEnabled,
+  gridConfig,
+  onToggleGrid,
+  onOpenGridStudio,
   onCommitLayerTransform,
+  onNudgeLayerContent,
+  onReorderLayer,
+  onToggleAllLayersVisibility,
   onMoveVectorShape,
   onDeleteSelectedShape,
   onEnsureVectorLayer,
@@ -154,6 +185,11 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
   onToggleRightPanel,
   onFitZoom,
   onDropImageFile,
+  onSelectTool,
+  onUndo,
+  onRedo,
+  canUndo = false,
+  canRedo = false,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const mainCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -249,8 +285,12 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
     lastPos: { x: number; y: number };
   } | null>(null);
   const transformRaf = useRef<number | null>(null);
+  const accumulatedPanDelta = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const lastDrawCompositeTime = useRef<number>(0);
   const [cloneToast, setCloneToast] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [showMovePad, setShowMovePad] = useState<boolean>(false);
+  const allLayersVisible = currentFrame.layers.every((l) => l.visible);
 
   // Lasso points buffer
   const lassoPoints = useRef<{ x: number; y: number }[]>([]);
@@ -327,7 +367,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
    * Convert client viewport screen coordinates (e.clientX, e.clientY) to Canvas document coordinates
    */
   const getCanvasCoords = useCallback(
-    (clientX: number, clientY: number): { x: number; y: number } => {
+    (clientX: number, clientY: number, allowSnap: boolean = true): { x: number; y: number } => {
       const container = containerRef.current;
       if (!container) return { x: 0, y: 0 };
       const rect = container.getBoundingClientRect();
@@ -344,12 +384,110 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       const rotX = screenX * cos - screenY * sin;
       const rotY = screenX * sin + screenY * cos;
 
-      const docX = rotX / transform.zoom + config.width / 2;
-      const docY = rotY / transform.zoom + config.height / 2;
+      let docX = rotX / transform.zoom + config.width / 2;
+      let docY = rotY / transform.zoom + config.height / 2;
+
+      // Magnetic Snap to Grid & Guides
+      if (allowSnap && gridConfig?.enabled && gridConfig?.snapToGrid) {
+        const tol = gridConfig.snapTolerance || 12;
+        if (gridConfig.type === 'square' || gridConfig.type === 'dots') {
+          const step = Math.max(2, gridConfig.size || 32);
+          const nearestX = Math.round(docX / step) * step;
+          const nearestY = Math.round(docY / step) * step;
+          if (Math.abs(docX - nearestX) <= tol) docX = nearestX;
+          if (Math.abs(docY - nearestY) <= tol) docY = nearestY;
+        } else if (gridConfig.type === 'isometric') {
+          const size = Math.max(8, gridConfig.size || 48);
+          const w = size * 1.732;
+          const h = size;
+          const halfW = w / 2;
+          const halfH = h / 2;
+          const col = Math.round(docX / halfW);
+          const row = Math.round(docY / halfH);
+          const targetX = col * halfW;
+          const targetY = row * halfH;
+          if (Math.hypot(docX - targetX, docY - targetY) <= tol) {
+            docX = targetX;
+            docY = targetY;
+          }
+        } else if (gridConfig.type === 'triangular') {
+          const size = Math.max(8, gridConfig.size || 48);
+          const h = (size * 1.732) / 2;
+          const row = Math.round(docY / h);
+          const targetY = row * h;
+          const offset = (row % 2) * (size / 2);
+          const col = Math.round((docX - offset) / size);
+          const targetX = col * size + offset;
+          if (Math.hypot(docX - targetX, docY - targetY) <= tol) {
+            docX = targetX;
+            docY = targetY;
+          }
+        } else if (gridConfig.type === 'polar') {
+          const cx = config.width / 2;
+          const cy = config.height / 2;
+          const dx = docX - cx;
+          const dy = docY - cy;
+          const r = Math.hypot(dx, dy);
+          const angle = Math.atan2(dy, dx);
+          const step = Math.max(8, gridConfig.size || 48);
+          const divisions = gridConfig.polarDivisions || 12;
+          const angleStep = (Math.PI * 2) / divisions;
+
+          const nearestR = Math.round(r / step) * step;
+          const nearestAngle = Math.round(angle / angleStep) * angleStep;
+          const targetX = cx + nearestR * Math.cos(nearestAngle);
+          const targetY = cy + nearestR * Math.sin(nearestAngle);
+          if (Math.hypot(docX - targetX, docY - targetY) <= tol) {
+            docX = targetX;
+            docY = targetY;
+          }
+        } else if (gridConfig.type === 'rule-of-thirds') {
+          const xs = [config.width / 3, (config.width * 2) / 3];
+          const ys = [config.height / 3, (config.height * 2) / 3];
+          for (const gx of xs) {
+            if (Math.abs(docX - gx) <= tol) {
+              docX = gx;
+              break;
+            }
+          }
+          for (const gy of ys) {
+            if (Math.abs(docY - gy) <= tol) {
+              docY = gy;
+              break;
+            }
+          }
+        } else if (gridConfig.type === 'golden-ratio') {
+          const xs = [config.width * 0.382, config.width * 0.618];
+          const ys = [config.height * 0.382, config.height * 0.618];
+          for (const gx of xs) {
+            if (Math.abs(docX - gx) <= tol) {
+              docX = gx;
+              break;
+            }
+          }
+          for (const gy of ys) {
+            if (Math.abs(docY - gy) <= tol) {
+              docY = gy;
+              break;
+            }
+          }
+        }
+
+        // Custom Guidelines Snapping
+        if (gridConfig.guides && gridConfig.guides.length > 0) {
+          for (const guide of gridConfig.guides) {
+            if (guide.orientation === 'horizontal' && Math.abs(docY - guide.position) <= tol) {
+              docY = guide.position;
+            } else if (guide.orientation === 'vertical' && Math.abs(docX - guide.position) <= tol) {
+              docX = guide.position;
+            }
+          }
+        }
+      }
 
       return { x: docX, y: docY };
     },
-    [transform, config.width, config.height]
+    [transform, config.width, config.height, gridConfig]
   );
 
   /**
@@ -1504,12 +1642,19 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
               const dx = midX - lastPanPos.current.x;
               const dy = midY - lastPanPos.current.y;
               lastPanPos.current = { x: midX, y: midY };
+              accumulatedPanDelta.current.x += dx;
+              accumulatedPanDelta.current.y += dy;
+
               if (transformRaf.current === null) {
                 transformRaf.current = requestAnimationFrame(() => {
+                  const curDx = accumulatedPanDelta.current.x;
+                  const curDy = accumulatedPanDelta.current.y;
+                  accumulatedPanDelta.current.x = 0;
+                  accumulatedPanDelta.current.y = 0;
                   onUpdateTransform({
                     zoom: newZoom,
-                    panX: transform.panX + dx,
-                    panY: transform.panY + dy,
+                    deltaPanX: curDx,
+                    deltaPanY: curDy,
                   });
                   transformRaf.current = null;
                 });
@@ -1529,16 +1674,23 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       }
     }
 
-    // Handle Panning (throttled with RAF for 120fps fluid responsiveness)
+    // Handle Panning (smooth 120fps delta accumulation for up/down/left/right canvas movement)
     if (isPanning.current && lastPanPos.current) {
       const dx = e.clientX - lastPanPos.current.x;
       const dy = e.clientY - lastPanPos.current.y;
       lastPanPos.current = { x: e.clientX, y: e.clientY };
+      accumulatedPanDelta.current.x += dx;
+      accumulatedPanDelta.current.y += dy;
+
       if (transformRaf.current === null) {
         transformRaf.current = requestAnimationFrame(() => {
+          const curDx = accumulatedPanDelta.current.x;
+          const curDy = accumulatedPanDelta.current.y;
+          accumulatedPanDelta.current.x = 0;
+          accumulatedPanDelta.current.y = 0;
           onUpdateTransform({
-            panX: transform.panX + dx,
-            panY: transform.panY + dy,
+            deltaPanX: curDx,
+            deltaPanY: curDy,
           });
           transformRaf.current = null;
         });
@@ -2114,8 +2266,38 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
             primaryColor,
             activeTool === 'eraser'
           );
+
+          // THERMAL & COOLING OPTIMIZATION:
+          // For opaque visible layers with normal blend mode, directly mirror stroke to mainCanvas
+          // to completely avoid re-clearing and compositing all background layers at 120fps!
+          const isNormalTopDraw =
+            activeTool !== 'eraser' &&
+            targetLayer.visible &&
+            !targetLayer.clippingMask &&
+            targetLayer.opacity === 1 &&
+            (!targetLayer.blendMode || targetLayer.blendMode === 'source-over');
+
+          if (isNormalTopDraw && mainCanvasRef.current) {
+            const mCtx = mainCanvasRef.current.getContext('2d');
+            if (mCtx) {
+              brushRenderer.current.drawStrokeSegment(
+                mCtx,
+                smoothedPoint.current,
+                targetPoint,
+                brushSettings,
+                primaryColor,
+                false
+              );
+            }
+          } else {
+            // For eraser, blend modes, or partial opacity: throttle full composite to 30fps max
+            const now = performance.now();
+            if (now - lastDrawCompositeTime.current > 33) {
+              lastDrawCompositeTime.current = now;
+              scheduleMainCanvasRender();
+            }
+          }
         }
-        scheduleMainCanvasRender();
       }
 
       smoothedPoint.current = targetPoint;
@@ -2550,19 +2732,324 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
           }}
         />
 
-        {/* Alignment Grid Overlay */}
-        {gridEnabled && (
+        {/* Advanced Alignment & Composition Grid Overlay */}
+        {(gridConfig?.enabled ?? gridEnabled) && (
           <svg
-            className="absolute inset-0 pointer-events-none z-10"
+            className="absolute inset-0 pointer-events-none z-10 overflow-visible"
             width={config.width}
             height={config.height}
           >
-            <defs>
-              <pattern id="canvas-grid" width="64" height="64" patternUnits="userSpaceOnUse">
-                <path d="M 64 0 L 0 0 0 64" fill="none" stroke="rgba(255, 255, 255, 0.08)" strokeWidth="1" />
-              </pattern>
-            </defs>
-            <rect width="100%" height="100%" fill="url(#canvas-grid)" />
+            {(() => {
+              const type = gridConfig?.type || 'square';
+              const size = Math.max(4, gridConfig?.size || 64);
+              const color = gridConfig?.color || '#06b6d4';
+              const opacity = gridConfig?.opacity ?? 0.25;
+              const lw = gridConfig?.lineWidth || 1;
+              const sub = gridConfig?.subdivisions || 4;
+
+              if (type === 'dots') {
+                return (
+                  <>
+                    <defs>
+                      <pattern id="dot-grid" width={size} height={size} patternUnits="userSpaceOnUse">
+                        <circle cx={size / 2} cy={size / 2} r={lw + 0.5} fill={color} opacity={opacity * 1.5} />
+                      </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#dot-grid)" />
+                  </>
+                );
+              }
+
+              if (type === 'isometric') {
+                const w = size * 1.732;
+                const h = size;
+                return (
+                  <>
+                    <defs>
+                      <pattern id="iso-grid" width={w} height={h} patternUnits="userSpaceOnUse">
+                        <path
+                          d={`M 0 0 L ${w / 2} ${h / 2} L ${w} 0 M ${w / 2} ${h / 2} L ${w / 2} ${h} M 0 ${h} L ${w / 2} ${h / 2} L ${w} ${h} M 0 0 L 0 ${h}`}
+                          fill="none"
+                          stroke={color}
+                          strokeWidth={lw}
+                          opacity={opacity}
+                        />
+                      </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#iso-grid)" />
+                  </>
+                );
+              }
+
+              if (type === 'rule-of-thirds') {
+                const x1 = config.width / 3;
+                const x2 = (config.width * 2) / 3;
+                const y1 = config.height / 3;
+                const y2 = (config.height * 2) / 3;
+                const intersections = [
+                  { x: x1, y: y1 },
+                  { x: x2, y: y1 },
+                  { x: x1, y: y2 },
+                  { x: x2, y: y2 },
+                ];
+                return (
+                  <g opacity={opacity * 1.8}>
+                    {/* 4 Partition Lines */}
+                    <line x1={x1} y1={0} x2={x1} y2={config.height} stroke={color} strokeWidth={lw * 1.5} strokeDasharray="6 4" />
+                    <line x1={x2} y1={0} x2={x2} y2={config.height} stroke={color} strokeWidth={lw * 1.5} strokeDasharray="6 4" />
+                    <line x1={0} y1={y1} x2={config.width} y2={y1} stroke={color} strokeWidth={lw * 1.5} strokeDasharray="6 4" />
+                    <line x1={0} y1={y2} x2={config.width} y2={y2} stroke={color} strokeWidth={lw * 1.5} strokeDasharray="6 4" />
+
+                    {/* 4 Power Focal Points */}
+                    {intersections.map((pt, idx) => (
+                      <g key={idx}>
+                        <circle cx={pt.x} cy={pt.y} r={10} fill="none" stroke={color} strokeWidth={lw * 1.5} />
+                        <circle cx={pt.x} cy={pt.y} r={3} fill={color} />
+                      </g>
+                    ))}
+                  </g>
+                );
+              }
+
+              if (type === 'golden-ratio') {
+                const gx1 = config.width * 0.382;
+                const gx2 = config.width * 0.618;
+                const gy1 = config.height * 0.382;
+                const gy2 = config.height * 0.618;
+                return (
+                  <g opacity={opacity * 1.8}>
+                    <line x1={gx1} y1={0} x2={gx1} y2={config.height} stroke={color} strokeWidth={lw * 1.5} strokeDasharray="8 4" />
+                    <line x1={gx2} y1={0} x2={gx2} y2={config.height} stroke={color} strokeWidth={lw * 1.5} strokeDasharray="8 4" />
+                    <line x1={0} y1={gy1} x2={config.width} y2={gy1} stroke={color} strokeWidth={lw * 1.5} strokeDasharray="8 4" />
+                    <line x1={0} y1={gy2} x2={config.width} y2={gy2} stroke={color} strokeWidth={lw * 1.5} strokeDasharray="8 4" />
+                    {/* Golden Spiral Path Simulation */}
+                    <path
+                      d={`M 0 ${config.height} Q ${config.width * 0.618} ${config.height} ${config.width * 0.618} ${config.height * 0.382} Q ${config.width * 0.618} 0 ${config.width * 0.382} 0 Q ${config.width * 0.382} ${config.height * 0.382} ${config.width * 0.5} ${config.height * 0.382}`}
+                      fill="none"
+                      stroke={color}
+                      strokeWidth={lw * 2}
+                      opacity={0.8}
+                    />
+                  </g>
+                );
+              }
+
+              if (type === 'triangular') {
+                const w = size;
+                const h = size * 0.866;
+                return (
+                  <>
+                    <defs>
+                      <pattern id="tri-grid" width={w} height={h * 2} patternUnits="userSpaceOnUse">
+                        <path
+                          d={`M 0 0 L ${w} 0 M 0 ${h} L ${w} ${h} M 0 ${h * 2} L ${w} ${h * 2} M 0 0 L ${w / 2} ${h} L 0 ${h * 2} M ${w} 0 L ${w / 2} ${h} L ${w} ${h * 2}`}
+                          fill="none"
+                          stroke={color}
+                          strokeWidth={lw}
+                          opacity={opacity}
+                        />
+                      </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#tri-grid)" />
+                  </>
+                );
+              }
+
+              if (type === 'polar') {
+                const cx = config.width / 2;
+                const cy = config.height / 2;
+                const maxR = Math.hypot(cx, cy);
+                const step = Math.max(12, size);
+                const circles = [];
+                for (let r = step; r <= maxR; r += step) {
+                  circles.push(r);
+                }
+                const divisions = gridConfig?.polarDivisions || 12;
+                const rays = [];
+                for (let i = 0; i < divisions; i++) {
+                  const angle = (i * Math.PI * 2) / divisions;
+                  rays.push({
+                    x2: cx + Math.cos(angle) * maxR,
+                    y2: cy + Math.sin(angle) * maxR,
+                  });
+                }
+                return (
+                  <g opacity={opacity * 1.5}>
+                    {/* Concentric Circles */}
+                    {circles.map((r, idx) => (
+                      <circle
+                        key={`c-${idx}`}
+                        cx={cx}
+                        cy={cy}
+                        r={r}
+                        fill="none"
+                        stroke={color}
+                        strokeWidth={idx % 4 === 3 ? lw * 1.5 : lw}
+                        strokeDasharray={idx % 2 === 1 ? '4 3' : undefined}
+                      />
+                    ))}
+                    {/* Radial Ray Lines */}
+                    {rays.map((ray, idx) => (
+                      <line
+                        key={`r-${idx}`}
+                        x1={cx}
+                        y1={cy}
+                        x2={ray.x2}
+                        y2={ray.y2}
+                        stroke={color}
+                        strokeWidth={lw}
+                        strokeDasharray="5 3"
+                      />
+                    ))}
+                    {/* Center Anchor Point */}
+                    <circle cx={cx} cy={cy} r={4} fill={color} />
+                    <circle cx={cx} cy={cy} r={8} fill="none" stroke={color} strokeWidth={lw * 1.5} />
+                  </g>
+                );
+              }
+
+              if (type === 'perspective') {
+                const vpX = config.width / 2;
+                const vpY = config.height * 0.45;
+                const rays = [];
+                // Floor rays
+                for (let i = -10; i <= 10; i++) {
+                  rays.push({ x1: vpX, y1: vpY, x2: vpX + i * (config.width / 10), y2: config.height });
+                }
+                // Ceiling rays
+                for (let i = -6; i <= 6; i++) {
+                  rays.push({ x1: vpX, y1: vpY, x2: vpX + i * (config.width / 6), y2: 0 });
+                }
+                return (
+                  <g opacity={opacity * 1.8}>
+                    {/* Horizon */}
+                    <line x1={0} y1={vpY} x2={config.width} y2={vpY} stroke={color} strokeWidth={lw * 2} />
+                    <text x={20} y={vpY - 6} fill={color} fontSize="11" fontFamily="sans-serif" fontWeight="bold">
+                      HORIZON LINE
+                    </text>
+                    {/* Vanishing Point */}
+                    <circle cx={vpX} cy={vpY} r={6} fill={color} />
+                    {/* Converging Rays */}
+                    {rays.map((ray, idx) => (
+                      <line key={idx} x1={ray.x1} y1={ray.y1} x2={ray.x2} y2={ray.y2} stroke={color} strokeWidth={lw} strokeDasharray="5 3" />
+                    ))}
+                  </g>
+                );
+              }
+
+              // Default: Square Grid with Subdivisions
+              const majorSize = sub > 1 ? size * sub : size;
+              return (
+                <>
+                  <defs>
+                    <pattern id="canvas-grid-minor" width={size} height={size} patternUnits="userSpaceOnUse">
+                      <path d={`M ${size} 0 L 0 0 L 0 ${size}`} fill="none" stroke={color} strokeWidth={lw} opacity={opacity} />
+                    </pattern>
+                    {sub > 1 && (
+                      <pattern id="canvas-grid-major" width={majorSize} height={majorSize} patternUnits="userSpaceOnUse">
+                        <path d={`M ${majorSize} 0 L 0 0 L 0 ${majorSize}`} fill="none" stroke={color} strokeWidth={lw * 1.6} opacity={opacity * 2} />
+                      </pattern>
+                    )}
+                  </defs>
+                  <rect width="100%" height="100%" fill="url(#canvas-grid-minor)" />
+                  {sub > 1 && <rect width="100%" height="100%" fill="url(#canvas-grid-major)" />}
+                </>
+              );
+            })()}
+
+            {/* Auto Pixel Grid when zoomed in >= 400% for pixel-perfect art */}
+            {(gridConfig?.showPixelGrid ?? true) && transform.zoom >= 4.0 && (
+              <>
+                <defs>
+                  <pattern id="pixel-grid-pattern" width="1" height="1" patternUnits="userSpaceOnUse">
+                    <path d="M 1 0 L 0 0 L 0 1" fill="none" stroke={gridConfig?.color || '#06b6d4'} strokeWidth="0.08" opacity={0.35} />
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#pixel-grid-pattern)" />
+              </>
+            )}
+
+            {/* Custom Guidelines Overlay */}
+            {gridConfig?.guides && gridConfig.guides.length > 0 && (
+              <g className="custom-guidelines">
+                {gridConfig.guides.map((g) => {
+                  const gColor = g.color || gridConfig.color || '#06b6d4';
+                  if (g.orientation === 'horizontal') {
+                    return (
+                      <g key={g.id}>
+                        <line
+                          x1={0}
+                          y1={g.position}
+                          x2={config.width}
+                          y2={g.position}
+                          stroke={gColor}
+                          strokeWidth="1.5"
+                          strokeDasharray="6 3"
+                          opacity="0.9"
+                        />
+                        <rect
+                          x={6}
+                          y={Math.max(2, g.position - 14)}
+                          width={48}
+                          height={12}
+                          rx={3}
+                          fill="#171717"
+                          stroke={gColor}
+                          strokeWidth="0.8"
+                          opacity="0.9"
+                        />
+                        <text
+                          x={10}
+                          y={Math.max(11, g.position - 5)}
+                          fill={gColor}
+                          fontSize="9"
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                        >
+                          Y:{Math.round(g.position)}
+                        </text>
+                      </g>
+                    );
+                  } else {
+                    return (
+                      <g key={g.id}>
+                        <line
+                          x1={g.position}
+                          y1={0}
+                          x2={g.position}
+                          y2={config.height}
+                          stroke={gColor}
+                          strokeWidth="1.5"
+                          strokeDasharray="6 3"
+                          opacity="0.9"
+                        />
+                        <rect
+                          x={Math.max(2, g.position + 4)}
+                          y={6}
+                          width={48}
+                          height={12}
+                          rx={3}
+                          fill="#171717"
+                          stroke={gColor}
+                          strokeWidth="0.8"
+                          opacity="0.9"
+                        />
+                        <text
+                          x={Math.max(6, g.position + 8)}
+                          y={15}
+                          fill={gColor}
+                          fontSize="9"
+                          fontFamily="monospace"
+                          fontWeight="bold"
+                        >
+                          X:{Math.round(g.position)}
+                        </text>
+                      </g>
+                    );
+                  }
+                })}
+              </g>
+            )}
           </svg>
         )}
 
@@ -3015,6 +3502,98 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
         </div>
       )}
 
+      {/* On-Canvas Floating Pro Grid Quick HUD */}
+      {gridConfig?.enabled && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          className="absolute top-3 left-1/2 -translate-x-1/2 bg-neutral-900/95 backdrop-blur-md border border-cyan-500/60 rounded-xl px-2.5 sm:px-3 py-1.5 shadow-2xl flex items-center gap-1.5 sm:gap-2 z-30 text-xs select-none max-w-[95vw] overflow-x-auto touch-pan-x"
+        >
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            <span className="font-bold text-white text-[11px] hidden sm:inline">গ্রিড সিস্টেম:</span>
+          </div>
+
+          {/* Quick Grid Type & Settings Pill */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenGridStudio?.();
+              }}
+              className="px-2 py-0.5 rounded text-[11px] font-bold bg-cyan-950 text-cyan-300 border border-cyan-700/60 hover:bg-cyan-900 transition-all cursor-pointer flex items-center gap-1 shrink-0"
+              title="গ্রিড স্টাইল ও সাইজ পরিবর্তন করুন"
+            >
+              <span>
+                {gridConfig.type === 'square'
+                  ? 'স্কয়ার'
+                  : gridConfig.type === 'isometric'
+                  ? '৩D আইসো'
+                  : gridConfig.type === 'triangular'
+                  ? 'ট্রায়াঙ্গল'
+                  : gridConfig.type === 'dots'
+                  ? 'ডট গ্রিড'
+                  : gridConfig.type === 'rule-of-thirds'
+                  ? '৩×৩'
+                  : gridConfig.type === 'golden-ratio'
+                  ? 'গোল্ডেন'
+                  : gridConfig.type === 'perspective'
+                  ? 'পারস্পেক্টিভ'
+                  : 'পোলার'}
+              </span>
+              <span className="text-[9px] text-cyan-400">({gridConfig.size}px)</span>
+            </button>
+
+            {/* Magnetic Snap Toggle */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenGridStudio?.();
+              }}
+              className={`px-2 py-0.5 rounded text-[10px] font-bold flex items-center gap-1 transition-all cursor-pointer shrink-0 ${
+                gridConfig.snapToGrid
+                  ? 'bg-amber-500 text-black font-extrabold shadow'
+                  : 'bg-neutral-800 text-neutral-400 hover:text-white'
+              }`}
+              title="ম্যাগনেটিক স্ন্যাপ সেটিংস"
+            >
+              <Magnet className="w-2.5 h-2.5" />
+              <span>{gridConfig.snapToGrid ? 'স্ন্যাপ ON' : 'স্ন্যাপ'}</span>
+            </button>
+
+            {/* Grid Studio settings button */}
+            {onOpenGridStudio && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onOpenGridStudio();
+                }}
+                className="px-2.5 py-0.5 rounded bg-cyan-600 hover:bg-cyan-500 text-black text-[10px] font-extrabold flex items-center gap-1 transition-all cursor-pointer shrink-0 shadow-md shadow-cyan-900/40"
+                title="সম্পূর্ণ গ্রিড ও গাইড স্টুডিও খুলুন"
+              >
+                <Sliders className="w-2.5 h-2.5" />
+                <span>স্টুডিও</span>
+              </button>
+            )}
+
+            {/* Close Grid Button */}
+            {onToggleGrid && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleGrid();
+                }}
+                className="p-1 rounded text-neutral-400 hover:text-red-400 hover:bg-neutral-800 cursor-pointer transition-colors shrink-0"
+                title="গ্রিড বন্ধ করুন"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Floating Canvas Quick Viewport Tooltip */}
       <div
         onPointerDown={(e) => e.stopPropagation()}
@@ -3074,6 +3653,65 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
           </>
         )}
 
+        {onToggleGrid && (
+          <>
+            <span>•</span>
+            <div className="flex items-center gap-0.5">
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleGrid();
+                }}
+                className={`flex items-center gap-1 font-sans text-[11px] px-1.5 py-0.5 rounded cursor-pointer transition-colors active:scale-95 ${
+                  gridConfig?.enabled
+                    ? 'bg-cyan-950 text-cyan-300 border border-cyan-700/80 font-bold shadow'
+                    : 'bg-neutral-800/80 text-neutral-300 hover:text-white'
+                }`}
+                title="গ্রিড অন/অফ করুন (Ctrl+')"
+              >
+                <GridIcon className="w-3 h-3 text-cyan-400" />
+                <span>{gridConfig?.enabled ? 'গ্রিড ON' : 'গ্রিড'}</span>
+              </button>
+
+              {onOpenGridStudio && (
+                <button
+                  onPointerDown={(e) => e.stopPropagation()}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onOpenGridStudio();
+                  }}
+                  className="px-1 py-0.5 rounded hover:bg-neutral-750 text-cyan-400 hover:text-cyan-200 cursor-pointer active:scale-95"
+                  title="অ্যাডভান্সড গ্রিড ও গাইড স্টুডিও (Grid Settings)"
+                >
+                  ⚙️
+                </button>
+              )}
+            </div>
+          </>
+        )}
+
+        {gridConfig?.snapToGrid && gridConfig?.enabled && (
+          <>
+            <span>•</span>
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onOpenGridStudio?.();
+              }}
+              className="flex items-center gap-1 text-[10px] text-amber-300 font-bold bg-amber-950/80 border border-amber-600/50 px-1.5 py-0.5 rounded cursor-pointer active:scale-95"
+              title="ম্যাগনেটিক স্ন্যাপ সক্রিয় রয়েছে (ক্লিক করে সেটিংস পরিবর্তন করুন)"
+            >
+              <Magnet className="w-2.5 h-2.5 text-amber-400" />
+              <span>স্ন্যাপ ON</span>
+            </button>
+          </>
+        )}
+
         {onToggleFullPage && (
           <>
             <span>•</span>
@@ -3119,33 +3757,132 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
             </button>
           </>
         )}
+
+        {onToggleAllLayersVisibility && (
+          <>
+            <span>•</span>
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleAllLayersVisibility();
+              }}
+              className={`flex items-center gap-1 font-sans text-[11px] px-2 py-0.5 rounded cursor-pointer transition-colors active:scale-95 ${
+                allLayersVisible
+                  ? 'bg-neutral-800/80 text-neutral-300 hover:text-white'
+                  : 'bg-amber-950 text-amber-300 border border-amber-600/60 font-bold shadow'
+              }`}
+              title={allLayersVisible ? 'সব লেয়ার লুকান (Hide All Layers)' : 'সব লেয়ার দেখান (Show All Layers)'}
+            >
+              {allLayersVisible ? <Eye className="w-3 h-3 text-cyan-400" /> : <EyeOff className="w-3 h-3 text-amber-400" />}
+              <span>{allLayersVisible ? 'লেয়ার দৃশ্যমান' : 'সব লুকানো'}</span>
+            </button>
+          </>
+        )}
+
+        {/* 4-Way D-Pad Movement Controller toggle button */}
+        <span>•</span>
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowMovePad((prev) => !prev);
+          }}
+          className={`flex items-center gap-1 font-sans text-[11px] px-2 py-0.5 rounded cursor-pointer transition-colors active:scale-95 ${
+            showMovePad
+              ? 'bg-cyan-600 text-white font-bold shadow ring-1 ring-cyan-400'
+              : 'bg-neutral-800/80 text-cyan-300 hover:text-white'
+          }`}
+          title="৪-দিক মুভমেন্ট কন্ট্রোল (D-Pad): ক্যানভাস বা লেয়ার উপরে/নিচে/বামে/ডানে সরান"
+        >
+          <Compass className="w-3 h-3 text-cyan-400" />
+          <span>মুভ D-Pad</span>
+        </button>
       </div>
 
-      {/* Floating Zen Mode / Full Page Exit & Quick Actions Pill */}
+      {/* Master Layer Visibility Warning Banner if layers are hidden */}
+      {!allLayersVisible && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="absolute top-12 left-1/2 -translate-x-1/2 z-40 bg-amber-950/95 border border-amber-500/80 shadow-2xl rounded-full px-3.5 py-1.5 flex items-center gap-2 text-xs text-amber-200 select-none animate-in fade-in zoom-in-95 pointer-events-auto"
+        >
+          <EyeOff className="w-4 h-4 text-amber-400 shrink-0" />
+          <span className="font-semibold text-[11px]">লেয়ার লুকানো রয়েছে (Layers Hidden)</span>
+          {onToggleAllLayersVisibility && (
+            <button
+              onClick={onToggleAllLayersVisibility}
+              className="px-2 py-0.5 rounded-full bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-[11px] transition-all cursor-pointer active:scale-95"
+            >
+              সব লেয়ার দেখান (Show All)
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Floating Directional Move Pad Widget */}
+      {showMovePad && (
+        <div className="fixed md:absolute bottom-14 right-3 z-45 animate-in fade-in zoom-in-95 duration-150">
+          <DirectionalMovePad
+            onPan={(dx, dy) => {
+              onUpdateTransform({
+                panX: transform.panX + dx,
+                panY: transform.panY + dy,
+              });
+            }}
+            onFitCanvas={() => {
+              onFitZoom?.();
+            }}
+            isPanToolActive={activeTool === 'hand'}
+            onTogglePanTool={() => {
+              onSelectTool?.(activeTool === 'hand' ? 'brush' : 'hand');
+            }}
+            onNudgeLayer={(dx, dy, moveAll) => {
+              if (onNudgeLayerContent) {
+                onNudgeLayerContent(dx, dy, moveAll);
+              } else if (onCommitLayerTransform) {
+                onCommitLayerTransform(dx, dy);
+              }
+            }}
+            activeLayer={activeLayer}
+            layers={currentFrame.layers}
+            allLayersVisible={allLayersVisible}
+            onToggleAllLayersVisibility={() => onToggleAllLayersVisibility?.()}
+            onReorderLayer={(from, to) => onReorderLayer?.(from, to)}
+            onClose={() => setShowMovePad(false)}
+          />
+        </div>
+      )}
+
+      {/* Floating Quick Thumb Button for Mobile D-Pad */}
+      {!showMovePad && (
+        <button
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowMovePad(true);
+          }}
+          className="fixed md:absolute bottom-12 right-3 z-35 p-2 rounded-full bg-neutral-900/90 hover:bg-cyan-600 text-cyan-300 hover:text-white border border-cyan-500/60 shadow-xl backdrop-blur-xs flex items-center gap-1.5 text-xs font-bold transition-all active:scale-95 cursor-pointer"
+          title="মুভমেন্ট কন্ট্রোল ওপেন করুন (Move D-Pad)"
+        >
+          <Compass className="w-4 h-4 text-cyan-400" />
+          <span className="text-[11px] pr-1 hidden sm:inline">মুভ কন্ট্রোল</span>
+        </button>
+      )}
+
+      {/* Floating Zen Mode / Full Page Exit & Rapid Mobile HUD */}
       {isFullPageMode && (
         <div
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
-          className="absolute top-3 right-3 z-45 flex items-center gap-2 animate-in fade-in duration-200 select-none pointer-events-auto"
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-45 flex items-center gap-1.5 sm:gap-2 bg-neutral-900/95 border border-amber-500/60 shadow-2xl backdrop-blur-md px-2.5 sm:px-3.5 py-1.5 rounded-full text-xs font-bold text-white select-none pointer-events-auto max-w-[96vw] overflow-x-auto touch-pan-x"
         >
-          {onToggleRightPanel && (
-            <button
-              onPointerDown={(e) => e.stopPropagation()}
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onToggleRightPanel();
-              }}
-              className="px-3 py-1.5 rounded-full bg-neutral-900/90 hover:bg-neutral-800 text-cyan-300 border border-cyan-500/50 shadow-2xl backdrop-blur-md text-xs font-bold flex items-center gap-1.5 cursor-pointer active:scale-95"
-              title="লেয়ার ও কালার স্টুডিও"
-            >
-              <LayersIcon className="w-3.5 h-3.5" />
-              <span>লেয়ার</span>
-            </button>
-          )}
-
+          {/* Exit Full Hide / Normal View */}
           {onToggleFullPage && (
             <button
               onPointerDown={(e) => e.stopPropagation()}
@@ -3154,11 +3891,153 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
                 e.stopPropagation();
                 onToggleFullPage();
               }}
-              className="px-3.5 py-1.5 rounded-full bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs flex items-center gap-1.5 shadow-2xl cursor-pointer active:scale-95 ring-2 ring-amber-300"
-              title="ফুল পেইজ মোড বন্ধ করুন (Exit Full Screen)"
+              className="px-2.5 py-1 rounded-full bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-[11px] flex items-center gap-1 shadow cursor-pointer active:scale-95 shrink-0"
+              title="সব বার পুনরায় প্রদর্শন করুন (Exit Full Screen)"
             >
-              <Minimize2 className="w-4 h-4" />
+              <Minimize2 className="w-3.5 h-3.5" />
               <span>নরমাল ভিউ</span>
+            </button>
+          )}
+
+          {/* Quick Fit Canvas to Screen */}
+          {onFitZoom && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onFitZoom();
+              }}
+              className="p-1.5 rounded-full bg-neutral-800 hover:bg-neutral-750 text-cyan-300 hover:text-white transition-colors cursor-pointer active:scale-95 shrink-0"
+              title="ক্যানভাস স্ক্রিনে ফিট করুন (Fit Screen)"
+            >
+              <Maximize className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Pan / Move Canvas Toggle */}
+          {onSelectTool && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectTool(activeTool === 'hand' ? 'brush' : 'hand');
+              }}
+              className={`px-2 py-1 rounded-full flex items-center gap-1 text-[11px] font-semibold transition-all cursor-pointer active:scale-95 shrink-0 ${
+                activeTool === 'hand'
+                  ? 'bg-cyan-500 text-black font-bold shadow'
+                  : 'bg-neutral-800 text-neutral-300 hover:text-white'
+              }`}
+              title="ক্যানভাস উপরে নিচে ডানে বামে মুভ করুন (Pan Tool)"
+            >
+              <Hand className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">প্যান</span>
+            </button>
+          )}
+
+          {/* Quick Brush Tool */}
+          {onSelectTool && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectTool('brush');
+              }}
+              className={`p-1.5 rounded-full transition-all cursor-pointer active:scale-95 shrink-0 ${
+                activeTool === 'brush'
+                  ? 'bg-cyan-600 text-white shadow ring-1 ring-cyan-400'
+                  : 'bg-neutral-800 text-neutral-400 hover:text-white'
+              }`}
+              title="ব্রাশ টুল (Brush)"
+            >
+              <Paintbrush className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Quick Eraser Tool */}
+          {onSelectTool && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSelectTool('eraser');
+              }}
+              className={`p-1.5 rounded-full transition-all cursor-pointer active:scale-95 shrink-0 ${
+                activeTool === 'eraser'
+                  ? 'bg-pink-600 text-white shadow ring-1 ring-pink-400'
+                  : 'bg-neutral-800 text-neutral-400 hover:text-white'
+              }`}
+              title="ইরেজার টুল (Eraser)"
+            >
+              <Eraser className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Color Chip */}
+          <label
+            className="w-5 h-5 rounded-full border-2 border-white shadow cursor-pointer overflow-hidden block shrink-0"
+            style={{ backgroundColor: primaryColor }}
+            title="কালার নির্বাচন করুন"
+          >
+            <input
+              type="color"
+              value={primaryColor}
+              onChange={(e) => onPickColor(e.target.value)}
+              className="opacity-0 w-full h-full cursor-pointer"
+            />
+          </label>
+
+          {/* Undo Button */}
+          {onUndo && (
+            <button
+              disabled={!canUndo}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onUndo();
+              }}
+              className="p-1.5 rounded-full bg-neutral-800 hover:bg-neutral-750 text-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer active:scale-95 shrink-0"
+              title="পূর্বাবস্থায় ফিরুন (Undo - Ctrl+Z)"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Redo Button */}
+          {onRedo && (
+            <button
+              disabled={!canRedo}
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onRedo();
+              }}
+              className="p-1.5 rounded-full bg-neutral-800 hover:bg-neutral-750 text-neutral-300 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer active:scale-95 shrink-0"
+              title="সামনে যান (Redo - Ctrl+Y)"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Layers Drawer Toggle */}
+          {onToggleRightPanel && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleRightPanel();
+              }}
+              className="px-2.5 py-1 rounded-full bg-cyan-950/90 hover:bg-cyan-900 text-cyan-300 border border-cyan-500/50 text-[11px] font-bold flex items-center gap-1 cursor-pointer active:scale-95 shrink-0"
+              title="লেয়ার ও কালার স্টুডিও (Layers Drawer)"
+            >
+              <LayersIcon className="w-3.5 h-3.5" />
+              <span>লেয়ার</span>
             </button>
           )}
         </div>
@@ -3292,4 +4171,4 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = ({
       )}
     </div>
   );
-};
+});
