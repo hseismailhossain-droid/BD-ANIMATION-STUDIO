@@ -32,8 +32,9 @@ import {
   Smartphone,
   Minimize2,
   Palette,
+  Magnet,
 } from 'lucide-react';
-import { CanvasConfig, ViewportTransform } from '../types';
+import { CanvasConfig, ViewportTransform, GridConfig } from '../types';
 
 interface TopMenuBarProps {
   config: CanvasConfig;
@@ -61,7 +62,9 @@ interface TopMenuBarProps {
   timelineVisible: boolean;
   onToggleTimeline: () => void;
   gridEnabled: boolean;
+  gridConfig?: GridConfig;
   onToggleGrid: () => void;
+  onOpenGridStudio?: () => void;
   onSelectAll?: () => void;
   onDeselect?: () => void;
   onInvertSelection?: () => void;
@@ -89,7 +92,7 @@ interface TopMenuBarProps {
   onToggleRightPanel?: () => void;
 }
 
-export const TopMenuBar: React.FC<TopMenuBarProps> = ({
+export const TopMenuBar: React.FC<TopMenuBarProps> = React.memo(({
   config,
   transform,
   canUndo,
@@ -115,7 +118,9 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
   timelineVisible,
   onToggleTimeline,
   gridEnabled,
+  gridConfig,
   onToggleGrid,
+  onOpenGridStudio,
   onSelectAll,
   onDeselect,
   onInvertSelection,
@@ -509,6 +514,98 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
           <Sliders className="w-3.5 h-3.5 text-cyan-400" /> Filters
         </button>
 
+        {/* View & Grid Menu */}
+        <div className="relative">
+          <button
+            onClick={() => toggleMenu('view')}
+            className={`px-2 py-1 rounded transition-colors flex items-center gap-1 ${
+              activeMenu === 'view'
+                ? 'bg-neutral-800 text-white'
+                : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
+            }`}
+          >
+            <Grid className="w-3.5 h-3.5 text-cyan-400" />
+            <span>View & Grid</span>
+          </button>
+          {activeMenu === 'view' && (
+            <div
+              className="absolute left-0 top-8 w-56 bg-neutral-900 border border-neutral-750 rounded-lg shadow-2xl py-1 text-neutral-200 z-50 animate-in fade-in zoom-in-95 duration-100"
+              onMouseLeave={closeMenu}
+            >
+              <button
+                onClick={() => {
+                  onToggleGrid();
+                  closeMenu();
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <Grid className="w-3.5 h-3.5 text-cyan-400" />
+                  {gridConfig?.enabled ? 'Hide Grid' : 'Show Grid'}
+                </span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+'</span>
+              </button>
+
+              {onOpenGridStudio && (
+                <button
+                  onClick={() => {
+                    onOpenGridStudio();
+                    closeMenu();
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                    Grid Studio & Snap...
+                  </span>
+                  <span className="text-amber-400 text-[10px]">Advanced</span>
+                </button>
+              )}
+
+              <div className="my-1 border-t border-neutral-800" />
+
+              <button
+                onClick={() => {
+                  onResetZoom();
+                  closeMenu();
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <Maximize className="w-3.5 h-3.5 text-emerald-400" /> Fit on Screen
+                </span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+0</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  onZoomIn();
+                  closeMenu();
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <ZoomIn className="w-3.5 h-3.5 text-cyan-400" /> Zoom In
+                </span>
+                <span className="text-neutral-500 text-[10px]">Ctrl++</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  onZoomOut();
+                  closeMenu();
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <ZoomOut className="w-3.5 h-3.5 text-cyan-400" /> Zoom Out
+                </span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+-</span>
+              </button>
+            </div>
+          )}
+        </div>
+
         {/* Brush Engine Settings */}
         <button
           onClick={onOpenBrushSettings}
@@ -636,18 +733,34 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
           <ChevronDown className="w-3 h-3 text-neutral-500 group-hover:text-cyan-400" />
         </button>
 
-        {/* Alignment Grid Toggle */}
-        <button
-          onClick={onToggleGrid}
-          title={gridEnabled ? 'Hide Alignment Grid' : 'Show Alignment Grid (Ctrl+\')'}
-          className={`p-1.5 rounded transition-colors ${
-            gridEnabled
-              ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/40'
-              : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-800'
-          }`}
-        >
-          <Grid className="w-3.5 h-3.5" />
-        </button>
+        {/* Alignment Grid Toggle & Studio */}
+        <div className="flex items-center bg-neutral-800/80 rounded-md p-0.5 border border-neutral-700/60 shrink-0">
+          <button
+            onClick={onToggleGrid}
+            title={gridConfig?.enabled ? 'গ্রিড বন্ধ করুন (Ctrl+\')' : 'গ্রিড চালু করুন (Ctrl+\')'}
+            className={`px-2 py-1 rounded flex items-center gap-1.5 transition-colors cursor-pointer ${
+              gridConfig?.enabled
+                ? 'bg-cyan-950 text-cyan-300 font-bold border border-cyan-500/50 shadow'
+                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-750'
+            }`}
+          >
+            <Grid className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span className="text-[11px] font-semibold">{gridConfig?.enabled ? 'গ্রিড ON' : 'গ্রিড'}</span>
+            {gridConfig?.snapToGrid && gridConfig?.enabled && (
+              <span className="text-[9px] bg-amber-500/30 text-amber-300 px-1 rounded border border-amber-500/40">🧲</span>
+            )}
+          </button>
+
+          {onOpenGridStudio && (
+            <button
+              onClick={onOpenGridStudio}
+              title="অ্যাডভান্সড গ্রিড ও গাইড স্টুডিও (Grid Settings)"
+              className="p-1 rounded text-neutral-400 hover:text-cyan-300 hover:bg-neutral-750 cursor-pointer"
+            >
+              <Sliders className="w-3 h-3" />
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Right controls: Undo/Redo, Zoom & Viewport */}
@@ -773,4 +886,21 @@ export const TopMenuBar: React.FC<TopMenuBarProps> = ({
       </div>
     </header>
   );
-};
+}, (prevProps, nextProps) => {
+  // Ignore pan changes - only re-render if zoom changed or other props changed
+  if (Math.round(prevProps.transform.zoom * 100) !== Math.round(nextProps.transform.zoom * 100)) {
+    return false;
+  }
+  // Standard shallow comparison for other key props
+  if (prevProps.canUndo !== nextProps.canUndo) return false;
+  if (prevProps.canRedo !== nextProps.canRedo) return false;
+  if (prevProps.gridEnabled !== nextProps.gridEnabled) return false;
+  if (prevProps.gridConfig?.enabled !== nextProps.gridConfig?.enabled) return false;
+  if (prevProps.timelineVisible !== nextProps.timelineVisible) return false;
+  if (prevProps.isFullPageMode !== nextProps.isFullPageMode) return false;
+  if (prevProps.rightPanelOpen !== nextProps.rightPanelOpen) return false;
+  if (prevProps.audioTrackCount !== nextProps.audioTrackCount) return false;
+  if (prevProps.canPaste !== nextProps.canPaste) return false;
+  if (prevProps.config.width !== nextProps.config.width || prevProps.config.height !== nextProps.config.height) return false;
+  return true;
+});
