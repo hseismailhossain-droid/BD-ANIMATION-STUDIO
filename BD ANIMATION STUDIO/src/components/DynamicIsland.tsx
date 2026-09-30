@@ -7,6 +7,7 @@ import {
   AnimationSettings,
   AudioTrackItem,
   CloneSettings,
+  GridConfig,
 } from '../types';
 import { AudioEngine, SOUND_PRESETS } from '../engine/audioEngine';
 import {
@@ -55,6 +56,8 @@ import {
   CopyPlus,
   Scissors,
   Crosshair,
+  Grid as GridIcon,
+  Magnet,
 } from 'lucide-react';
 
 interface DynamicIslandProps {
@@ -94,9 +97,12 @@ interface DynamicIslandProps {
   cloneSettings?: CloneSettings;
   onToggleCloneSampling?: () => void;
   isFullPageMode?: boolean;
+  gridConfig?: GridConfig;
+  onToggleGrid?: () => void;
+  onOpenGridStudio?: () => void;
 }
 
-export const DynamicIsland: React.FC<DynamicIslandProps> = ({
+export const DynamicIsland: React.FC<DynamicIslandProps> = React.memo(({
   activeTool,
   onSelectTool,
   primaryColor,
@@ -133,6 +139,9 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
   cloneSettings,
   onToggleCloneSampling,
   isFullPageMode = false,
+  gridConfig,
+  onToggleGrid,
+  onOpenGridStudio,
 }) => {
   const [isExpanded, setIsExpanded] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<'tools' | 'audio' | 'anim' | 'color' | 'actions'>('tools');
@@ -1220,6 +1229,47 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
                 </button>
               </div>
 
+              {/* Grid & Guides Quick Access in Island */}
+              <div className="flex items-center justify-between p-2 rounded-xl bg-neutral-900 border border-neutral-800">
+                <div className="flex items-center gap-2">
+                  <div className={`w-6 h-6 rounded-md flex items-center justify-center ${gridConfig?.enabled ? 'bg-cyan-500 text-black' : 'bg-neutral-800 text-neutral-400'}`}>
+                    <GridIcon className="w-3.5 h-3.5" />
+                  </div>
+                  <div>
+                    <div className="font-bold text-[11px] text-white">গ্রিড ও গাইড</div>
+                    <div className="text-[9px] text-neutral-400">
+                      {gridConfig?.enabled ? `সক্রিয় (${gridConfig.type})` : 'বন্ধ রয়েছে'}
+                      {gridConfig?.snapToGrid && gridConfig?.enabled && ' • 🧲 স্ন্যাপ ON'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-1">
+                  {onToggleGrid && (
+                    <button
+                      onClick={onToggleGrid}
+                      className={`px-2 py-1 rounded text-[10px] font-bold transition-all ${
+                        gridConfig?.enabled ? 'bg-cyan-600 text-white' : 'bg-neutral-800 text-neutral-300'
+                      }`}
+                    >
+                      {gridConfig?.enabled ? 'ON' : 'OFF'}
+                    </button>
+                  )}
+
+                  {onOpenGridStudio && (
+                    <button
+                      onClick={() => {
+                        setIsExpanded(false);
+                        onOpenGridStudio();
+                      }}
+                      className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-750 text-cyan-400 text-[10px] font-semibold flex items-center gap-1"
+                    >
+                      <Sliders className="w-2.5 h-2.5" /> সেটিংস
+                    </button>
+                  )}
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-2">
                 <button
                   disabled={!canUndo}
@@ -1278,4 +1328,4 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = ({
       )}
     </div>
   );
-};
+});
