@@ -25,6 +25,7 @@ import {
   ReferenceImageConfig,
   TweenConfig,
   AudioTrackItem,
+  GridConfig,
 } from './types';
 import {
   DEFAULT_CANVAS_CONFIG,
@@ -48,6 +49,7 @@ import { CinematicLightingModal } from './components/CinematicLightingModal';
 import { SoundStudioModal } from './components/SoundStudioModal';
 import { QuickVoiceRecorder } from './components/QuickVoiceRecorder';
 import { DynamicIsland } from './components/DynamicIsland';
+import { GridStudioModal } from './components/GridStudioModal';
 import { PWAInstallBanner } from './components/PWAInstallBanner';
 import { LightingEngine, LightingEffectConfig } from './engine/lightingEngine';
 import { ExportEngine } from './engine/exportEngine';
@@ -146,8 +148,57 @@ export default function App() {
     scrubby: true,
   });
 
-  // Alignment Grid
-  const [gridEnabled, setGridEnabled] = useState(false);
+  // Advanced Pro Grid & Snapping System
+  const [gridConfig, setGridConfig] = useState<GridConfig>(() => {
+    try {
+      const saved = localStorage.getItem('bd_anim_grid_config');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return {
+      enabled: false,
+      type: 'square',
+      size: 64,
+      subdivisions: 4,
+      color: '#06b6d4',
+      opacity: 0.25,
+      lineWidth: 1,
+      snapToGrid: false,
+      snapTolerance: 12,
+    };
+  });
+  const [showGridModal, setShowGridModal] = useState<boolean>(false);
+
+  const handleUpdateGridConfig = useCallback((updates: Partial<GridConfig>) => {
+    setGridConfig((prev) => {
+      const next = { ...prev, ...updates };
+      try {
+        localStorage.setItem('bd_anim_grid_config', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+  }, []);
+
+  const handleResetGridConfig = useCallback(() => {
+    const defaults: GridConfig = {
+      enabled: true,
+      type: 'square',
+      size: 64,
+      subdivisions: 4,
+      color: '#06b6d4',
+      opacity: 0.25,
+      lineWidth: 1,
+      snapToGrid: false,
+      snapTolerance: 12,
+    };
+    setGridConfig(defaults);
+    try {
+      localStorage.setItem('bd_anim_grid_config', JSON.stringify(defaults));
+    } catch {}
+  }, []);
+
+  const handleToggleGrid = useCallback(() => {
+    handleUpdateGridConfig({ enabled: !gridConfig.enabled });
+  }, [gridConfig.enabled, handleUpdateGridConfig]);
 
   // Full Page Zen Drawing Mode (Pure canvas, hide distractions)
   const [isFullPageMode, setIsFullPageMode] = useState<boolean>(false);
@@ -388,11 +439,15 @@ export default function App() {
           ? Math.max(0.05, Math.min(32, updates.zoom))
           : prev.zoom;
       const nextPanX =
-        typeof updates.panX === 'number' && Number.isFinite(updates.panX)
+        typeof updates.deltaPanX === 'number' && Number.isFinite(updates.deltaPanX)
+          ? prev.panX + updates.deltaPanX
+          : typeof updates.panX === 'number' && Number.isFinite(updates.panX)
           ? updates.panX
           : prev.panX;
       const nextPanY =
-        typeof updates.panY === 'number' && Number.isFinite(updates.panY)
+        typeof updates.deltaPanY === 'number' && Number.isFinite(updates.deltaPanY)
+          ? prev.panY + updates.deltaPanY
+          : typeof updates.panY === 'number' && Number.isFinite(updates.panY)
           ? updates.panY
           : prev.panY;
       const nextRot =
@@ -835,13 +890,15 @@ export default function App() {
   /**
    * Layer Transform & Nudge (Photoshop V / Transform tool)
    */
-  const handleNudgeLayer = (dx: number, dy: number) => {
+  const handleNudgeLayer = (dx: number, dy: number, moveAllLayers?: boolean) => {
     if (dx === 0 && dy === 0) {
       setFrames([...frames]);
       return;
     }
-    saveSnapshot('Nudge Layer');
-    const layersToMove = activeLayer.linked
+    saveSnapshot(moveAllLayers ? 'Nudge All Layers' : 'Nudge Layer');
+    const layersToMove = moveAllLayers
+      ? currentFrame.layers
+      : activeLayer.linked
       ? currentFrame.layers.filter((l) => l.linked || l.id === activeLayer.id)
       : [activeLayer];
 
@@ -849,6 +906,7 @@ export default function App() {
     const intDy = Math.round(dy);
 
     for (const lyr of layersToMove) {
+      if (lyr.locked) continue;
       if (lyr.type === 'raster') {
         const temp = document.createElement('canvas');
         temp.width = config.width;
@@ -866,6 +924,9 @@ export default function App() {
             lCtx.drawImage(temp, intDx, intDy);
           }
         }
+        // Thermal / GC memory release on mobile
+        temp.width = 1;
+        temp.height = 1;
       } else if (lyr.type === 'vector') {
         for (const s of lyr.vectors) {
           if (s.x !== undefined) s.x += intDx;
@@ -874,6 +935,14 @@ export default function App() {
             for (const pt of s.points) {
               pt.x += intDx;
               pt.y += intDy;
+              if (pt.handleIn) {
+                pt.handleIn.x += intDx;
+                pt.handleIn.y += intDy;
+              }
+              if (pt.handleOut) {
+                pt.handleOut.x += intDx;
+                pt.handleOut.y += intDy;
+              }
             }
           }
         }
@@ -881,6 +950,17 @@ export default function App() {
     }
     setFrames([...frames]);
   };
+
+  /**
+   * One-Tap Master Toggle: Hide All Layers or Show All Layers (Atomic update)
+   */
+  const handleToggleAllLayersVisibility = useCallback((forcedState?: boolean) => {
+    const allVisible = currentFrame.layers.every((l) => l.visible);
+    const nextVisible = forcedState !== undefined ? forcedState : !allVisible;
+    saveSnapshot(nextVisible ? 'Show All Layers' : 'Hide All Layers');
+    currentFrame.layers = currentFrame.layers.map((l) => ({ ...l, visible: nextVisible }));
+    setFrames([...frames]);
+  }, [currentFrame, frames, saveSnapshot]);
 
   const handleFlipLayerH = () => {
     saveSnapshot('Flip Layer Horizontal');
@@ -2327,7 +2407,11 @@ export default function App() {
 
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "'") {
         e.preventDefault();
-        setGridEnabled((g) => !g);
+        if (e.shiftKey) {
+          setShowGridModal((prev) => !prev);
+        } else {
+          handleToggleGrid();
+        }
         return;
       }
 
@@ -3109,6 +3193,7 @@ export default function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         // Priority 1: Close active modals
+        if (showGridModal) { setShowGridModal(false); return; }
         if (showQuickVoiceRecorder) { setShowQuickVoiceRecorder(false); return; }
         if (showSoundStudio) { setShowSoundStudio(false); return; }
         if (showLightingModal) { setShowLightingModal(false); return; }
@@ -3156,6 +3241,7 @@ export default function App() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [
+    showGridModal,
     showLightingModal,
     showTweenModal,
     showBrushStudioModal,
@@ -3205,8 +3291,10 @@ export default function App() {
           onOpenBrushSettings={() => setShowBrushStudioModal(true)}
           timelineVisible={timelineVisible}
           onToggleTimeline={() => setTimelineVisible(!timelineVisible)}
-          gridEnabled={gridEnabled}
-          onToggleGrid={() => setGridEnabled(!gridEnabled)}
+          gridEnabled={gridConfig.enabled}
+          gridConfig={gridConfig}
+          onToggleGrid={handleToggleGrid}
+          onOpenGridStudio={() => setShowGridModal(true)}
           onSelectAll={handleSelectAll}
           onDeselect={handleDeselect}
           onInvertSelection={handleInvertSelection}
@@ -3299,26 +3387,31 @@ export default function App() {
 
       {/* 3. Main Workspace Area: Tools Sidebar + Canvas Viewport + Right Side Panels */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Left Vertical Tools Sidebar */}
-        <ToolsSidebar
-          activeTool={activeTool}
-          onSelectTool={handleSelectTool}
-          primaryColor={primaryColor}
-          secondaryColor={secondaryColor}
-          onSwapColors={handleSwapColors}
-          onResetColors={handleResetColors}
-          onPrimaryColorChange={handlePrimaryColorChange}
-          brushPreset={brushSettings.preset}
-          onSelectGlowPencil={() => {
-            handleSelectTool('brush');
-            setBrushSettings((prev) => ({
-              ...prev,
-              preset: 'glow-pencil',
-              isGlow: true,
-              glowIntensity: prev.glowIntensity || 28,
-            }));
-          }}
-        />
+        {/* Left Vertical Tools Sidebar (Hidden in Full Page Zen Mode) */}
+        {!isFullPageMode && (
+          <ToolsSidebar
+            activeTool={activeTool}
+            onSelectTool={handleSelectTool}
+            primaryColor={primaryColor}
+            secondaryColor={secondaryColor}
+            onSwapColors={handleSwapColors}
+            onResetColors={handleResetColors}
+            onPrimaryColorChange={handlePrimaryColorChange}
+            brushPreset={brushSettings.preset}
+            onSelectGlowPencil={() => {
+              handleSelectTool('brush');
+              setBrushSettings((prev) => ({
+                ...prev,
+                preset: 'glow-pencil',
+                isGlow: true,
+                glowIntensity: prev.glowIntensity || 28,
+              }));
+            }}
+            gridEnabled={gridConfig.enabled}
+            onToggleGrid={handleToggleGrid}
+            onOpenGridStudio={() => setShowGridModal(true)}
+          />
+        )}
 
         {/* Center Interactive Canvas Viewport */}
         <div className="flex-1 h-full relative overflow-hidden flex flex-col">
@@ -3349,8 +3442,19 @@ export default function App() {
             onCommitVectorShape={handleCommitVectorShape}
             selectedVectorShapeId={selectedVectorShapeId}
             onSelectVectorShapeId={setSelectedVectorShapeId}
-            gridEnabled={gridEnabled}
+            gridEnabled={gridConfig.enabled}
+            gridConfig={gridConfig}
+            onToggleGrid={handleToggleGrid}
+            onOpenGridStudio={() => setShowGridModal(true)}
             onCommitLayerTransform={(dx, dy) => handleNudgeLayer(dx, dy)}
+            onNudgeLayerContent={(dx, dy, moveAll) => handleNudgeLayer(dx, dy, moveAll)}
+            onReorderLayer={handleReorderLayer}
+            onToggleAllLayersVisibility={handleToggleAllLayersVisibility}
+            onSelectTool={handleSelectTool}
+            onUndo={handleUndo}
+            onRedo={handleRedo}
+            canUndo={historyIndex.current >= 0}
+            canRedo={historyIndex.current < historyStack.current.length - 1}
             onMoveVectorShape={(shapeId, dx, dy) => {
               setFrames((prev) =>
                 prev.map((frame, idx) => {
@@ -3527,6 +3631,8 @@ export default function App() {
                   onToggleLinkLayer={handleToggleLinkLayer}
                   onReorderLayer={handleReorderLayer}
                   onUpdateLayer={handleUpdateLayer}
+                  onToggleAllLayersVisibility={handleToggleAllLayersVisibility}
+                  onNudgeLayer={handleNudgeLayer}
                   onClose={() => setRightPanelOpen(false)}
                 />
               </div>
@@ -3536,7 +3642,7 @@ export default function App() {
       </div>
 
       {/* 4. Bottom Dock: Frame-by-Frame Animation Timeline (Collapsible) */}
-      {timelineVisible && (
+      {timelineVisible && !isFullPageMode && (
         <AnimationTimeline
           frames={frames}
           settings={animSettings}
@@ -3554,7 +3660,7 @@ export default function App() {
       )}
 
       {/* Floating Dynamic Island (Mobile & Rapid Animation Command Center) */}
-      {dynamicIslandEnabled && (
+      {dynamicIslandEnabled && !isFullPageMode && (
         <DynamicIsland
           activeTool={activeTool}
           onSelectTool={handleSelectTool}
@@ -3594,6 +3700,9 @@ export default function App() {
             setCloneSettings((prev) => ({ ...prev, isSettingSource: !prev.isSettingSource }))
           }
           isFullPageMode={isFullPageMode}
+          gridConfig={gridConfig}
+          onToggleGrid={handleToggleGrid}
+          onOpenGridStudio={() => setShowGridModal(true)}
         />
       )}
 
@@ -3669,6 +3778,19 @@ export default function App() {
           onUpdate={(updates) => setBrushSettings((prev) => ({ ...prev, ...updates }))}
           color={primaryColor}
           onClose={() => setShowBrushStudioModal(false)}
+        />
+      )}
+
+      {/* Advanced Pro Grid & Guide Studio Modal */}
+      {showGridModal && (
+        <GridStudioModal
+          isOpen={showGridModal}
+          onClose={() => setShowGridModal(false)}
+          gridConfig={gridConfig}
+          onUpdateGridConfig={handleUpdateGridConfig}
+          onResetGridConfig={handleResetGridConfig}
+          canvasWidth={config.width}
+          canvasHeight={config.height}
         />
       )}
 
