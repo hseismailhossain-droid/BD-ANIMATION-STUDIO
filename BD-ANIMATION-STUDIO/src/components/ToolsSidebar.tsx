@@ -138,7 +138,7 @@ export const ToolsSidebar: React.FC<ToolsSidebarProps> = React.memo(({
               onClick={() => {
                 if (t.onClick) {
                   t.onClick();
-                } else if (t.id === 'clone' && activeTool === 'clone') {
+                } else if (t.id === activeTool && t.id !== 'brush') {
                   onSelectTool('brush');
                 } else {
                   onSelectTool(t.id as ToolType);
