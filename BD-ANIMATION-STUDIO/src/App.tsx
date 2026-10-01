@@ -69,6 +69,7 @@ import {
   Maximize2,
   Minimize2,
   Layers as LayersIcon,
+  Film,
 } from 'lucide-react';
 
 export default function App() {
@@ -3173,6 +3174,13 @@ export default function App() {
       return;
     }
 
+    // If clone tool is clicked while clone is already active, toggle it off back to brush
+    if (tool === 'clone' && activeTool === 'clone') {
+      setCloneSettings((prev) => ({ ...prev, isSettingSource: false }));
+      setActiveTool('brush');
+      return;
+    }
+
     // When switching to any drawing/selection tool, turn OFF transform/mesh & bone modes
     if (tool !== 'mesh' && tool !== 'transform') {
       if (transformState.isActive) {
@@ -3391,6 +3399,7 @@ export default function App() {
           isBoneActive={boneRigState.isActive}
           onCancelBoneRig={handleCancelBoneRig}
           onApplyBoneRig={handleApplyBoneRig}
+          onSelectTool={handleSelectTool}
         />
       )}
 
@@ -3691,6 +3700,19 @@ export default function App() {
           onOpenQuickVoice={() => setShowQuickVoiceRecorder(true)}
           onImportReferenceVideo={handleImportReferenceVideo}
         />
+      )}
+
+      {/* Collapsed Timeline Pull Tab on Bottom Edge when hidden */}
+      {!timelineVisible && !isFullPageMode && (
+        <button
+          onClick={() => setTimelineVisible(true)}
+          className="absolute bottom-2 right-2 z-35 bg-neutral-900/95 hover:bg-neutral-800 text-cyan-300 hover:text-white border border-cyan-500/80 shadow-2xl px-3 py-1.5 rounded-xl backdrop-blur-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 group select-none text-[11px] font-bold animate-in fade-in"
+          title="টাইমলাইন খুলুন (Show Animation Timeline)"
+        >
+          <Film className="w-3.5 h-3.5 text-cyan-400" />
+          <span>টাইমলাইন খুলুন</span>
+          <ChevronUp className="w-3.5 h-3.5 text-cyan-400 group-hover:-translate-y-0.5 transition-transform" />
+        </button>
       )}
 
       {/* Floating Dynamic Island (Mobile & Rapid Animation Command Center) */}
