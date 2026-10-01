@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
   Move,
+  GripHorizontal,
 } from 'lucide-react';
 import {
   Layer,
@@ -301,6 +302,80 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
   const [bottomBarPos, setBottomBarPos] = useState<'bottom-left' | 'bottom-center' | 'top-float'>('bottom-left');
   const allLayersVisible = currentFrame.layers.every((l) => l.visible);
+
+  // High-Contrast Interactive Brush Cursor Position & Size Preview
+  const [cursorCanvasPos, setCursorCanvasPos] = useState<{ x: number; y: number } | null>(null);
+  const [sizePreviewVisible, setSizePreviewVisible] = useState(false);
+  const prevBrushSize = useRef(brushSettings.size);
+
+  useEffect(() => {
+    if (prevBrushSize.current !== brushSettings.size) {
+      prevBrushSize.current = brushSettings.size;
+      setSizePreviewVisible(true);
+      const t = setTimeout(() => setSizePreviewVisible(false), 1600);
+      return () => clearTimeout(t);
+    }
+  }, [brushSettings.size]);
+
+  // Floating Draggable Bottom Toolbar State (Free drag anywhere on mobile and desktop)
+  const [bottomBarOffset, setBottomBarOffset] = useState<{ x: number; y: number } | null>(null);
+  const bottomBarDragging = useRef(false);
+  const bottomBarDragStart = useRef<{ x: number; y: number; startX: number; startY: number }>({
+    x: 0,
+    y: 0,
+    startX: 0,
+    startY: 0,
+  });
+  const bottomBarRef = useRef<HTMLDivElement>(null);
+
+  const handleBottomBarDragStart = (e: React.PointerEvent<HTMLElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('select') || target.closest('input')) return;
+    e.preventDefault();
+    e.stopPropagation();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (_) {}
+    bottomBarDragging.current = true;
+    const bar = bottomBarRef.current;
+    const rect = bar ? bar.getBoundingClientRect() : { left: 16, top: window.innerHeight - 60 };
+    bottomBarDragStart.current = {
+      x: e.clientX,
+      y: e.clientY,
+      startX: bottomBarOffset ? bottomBarOffset.x : rect.left,
+      startY: bottomBarOffset ? bottomBarOffset.y : rect.top,
+    };
+  };
+
+  const handleBottomBarDragMove = (e: React.PointerEvent<HTMLElement>) => {
+    if (!bottomBarDragging.current) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const dx = e.clientX - bottomBarDragStart.current.x;
+    const dy = e.clientY - bottomBarDragStart.current.y;
+    const bar = bottomBarRef.current;
+    const barW = bar ? bar.offsetWidth : 260;
+    const barH = bar ? bar.offsetHeight : 40;
+
+    const minX = 4;
+    const maxX = Math.max(10, window.innerWidth - barW - 4);
+    const minY = 40;
+    const maxY = Math.max(10, window.innerHeight - barH - 4);
+
+    const targetX = Math.max(minX, Math.min(maxX, bottomBarDragStart.current.startX + dx));
+    const targetY = Math.max(minY, Math.min(maxY, bottomBarDragStart.current.startY + dy));
+
+    setBottomBarOffset({ x: targetX, y: targetY });
+  };
+
+  const handleBottomBarDragEnd = (e: React.PointerEvent<HTMLElement>) => {
+    if (bottomBarDragging.current) {
+      bottomBarDragging.current = false;
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+    }
+  };
 
   // Lasso points buffer
   const lassoPoints = useRef<{ x: number; y: number }[]>([]);
@@ -1710,6 +1785,19 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
 
     const coords = getCanvasCoords(e.clientX, e.clientY);
 
+    // Track active brush cursor position for high-contrast visibility
+    if (
+      activeTool === 'brush' ||
+      activeTool === 'eraser' ||
+      activeTool === 'clone' ||
+      activeTool === 'smudge' ||
+      activeTool === 'blur'
+    ) {
+      setCursorCanvasPos({ x: coords.x, y: coords.y });
+    } else if (cursorCanvasPos !== null) {
+      setCursorCanvasPos(null);
+    }
+
     // Live Pen Rubber Band Guide (even before drag)
     if (activeTool === 'vector-pen' && activeVectorPath && activeVectorPath.length > 0) {
       penRubberBand.current = { x: coords.x, y: coords.y };
@@ -2649,6 +2737,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onPointerLeave={(e) => {
+        setCursorCanvasPos(null);
         // Do not interrupt touch drawing on screen edges
         if (e.pointerType !== 'touch') {
           handlePointerUp(e);
@@ -3125,7 +3214,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
           </svg>
         )}
 
-        {/* Clone Stamp Source Crosshair Marker */}
+        {/* Clone Stamp Source Crosshair Marker - Dual-Tone High Contrast Outline */}
         {cloneSettings.source && (
           <svg
             className="absolute inset-0 pointer-events-none z-15"
@@ -3133,12 +3222,126 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
             height={config.height}
           >
             <g transform={`translate(${cloneSettings.source.x}, ${cloneSettings.source.y})`}>
+              {/* Outer pure black halo for 100% visibility on white canvas */}
+              <circle r="10" fill="none" stroke="#000000" strokeWidth="3.5" />
               <circle r="10" fill="none" stroke="#f59e0b" strokeWidth="2" strokeDasharray="3 3" />
+              <line x1="-14" y1="0" x2="14" y2="0" stroke="#000000" strokeWidth="3" />
               <line x1="-14" y1="0" x2="14" y2="0" stroke="#f59e0b" strokeWidth="1.5" />
+              <line x1="0" y1="-14" x2="0" y2="14" stroke="#000000" strokeWidth="3" />
               <line x1="0" y1="-14" x2="0" y2="14" stroke="#f59e0b" strokeWidth="1.5" />
             </g>
           </svg>
         )}
+
+        {/* High-Contrast Dual-Tone Interactive Brush & Eraser Cursor Size Indicator Ring */}
+        {((cursorCanvasPos && (
+          activeTool === 'brush' ||
+          activeTool === 'eraser' ||
+          activeTool === 'clone' ||
+          activeTool === 'smudge' ||
+          activeTool === 'blur'
+        )) || (sizePreviewVisible && (
+          activeTool === 'brush' ||
+          activeTool === 'eraser' ||
+          activeTool === 'clone' ||
+          activeTool === 'smudge' ||
+          activeTool === 'blur'
+        ))) && (() => {
+          const pos = cursorCanvasPos || { x: config.width / 2, y: config.height / 2 };
+          const radius = brushSettings.size / 2;
+          const strokeColor =
+            activeTool === 'eraser'
+              ? '#ef4444'
+              : activeTool === 'clone'
+              ? '#f59e0b'
+              : '#06b6d4';
+          const fillColor =
+            activeTool === 'eraser'
+              ? 'rgba(239, 68, 68, 0.08)'
+              : activeTool === 'clone'
+              ? 'rgba(245, 158, 11, 0.08)'
+              : 'rgba(6, 182, 212, 0.08)';
+
+          const scaleFactor = Math.max(0.2, transform.zoom);
+          const outerLineWidth = Math.max(1.5, 3 / scaleFactor);
+          const innerLineWidth = Math.max(1, 1.8 / scaleFactor);
+
+          return (
+            <svg
+              className="absolute inset-0 pointer-events-none z-30 overflow-visible"
+              width={config.width}
+              height={config.height}
+            >
+              <g transform={`translate(${pos.x}, ${pos.y})`}>
+                {/* 1. Deep Black Outer Drop-Shadow / Halo Ring - Guarantees 100% visibility on pure white canvas */}
+                <circle
+                  r={radius}
+                  fill="none"
+                  stroke="#000000"
+                  strokeWidth={outerLineWidth}
+                  strokeOpacity="0.95"
+                />
+
+                {/* 2. Vibrant Inner Color Ring with subtle fill */}
+                <circle
+                  r={radius}
+                  fill={fillColor}
+                  stroke={strokeColor}
+                  strokeWidth={innerLineWidth}
+                  strokeDasharray={radius >= 12 ? `${Math.max(3, 4 / scaleFactor)} ${Math.max(2, 2.5 / scaleFactor)}` : undefined}
+                />
+
+                {/* 3. Center Precision Crosshair / Target Dot with Black Halo */}
+                <circle
+                  r={Math.max(1.2, 2.5 / scaleFactor)}
+                  fill="#000000"
+                />
+                <circle
+                  r={Math.max(0.7, 1.4 / scaleFactor)}
+                  fill={strokeColor}
+                />
+
+                {/* Center crosshair lines for larger brushes */}
+                {radius >= 8 && (
+                  <>
+                    <line
+                      x1={-Math.min(6, radius * 0.4)}
+                      y1={0}
+                      x2={Math.min(6, radius * 0.4)}
+                      y2={0}
+                      stroke="#000000"
+                      strokeWidth={outerLineWidth * 0.8}
+                    />
+                    <line
+                      x1={-Math.min(6, radius * 0.4)}
+                      y1={0}
+                      x2={Math.min(6, radius * 0.4)}
+                      y2={0}
+                      stroke={strokeColor}
+                      strokeWidth={innerLineWidth}
+                    />
+                    <line
+                      x1={0}
+                      y1={-Math.min(6, radius * 0.4)}
+                      x2={0}
+                      y2={Math.min(6, radius * 0.4)}
+                      stroke="#000000"
+                      strokeWidth={outerLineWidth * 0.8}
+                    />
+                    <line
+                      x1={0}
+                      y1={-Math.min(6, radius * 0.4)}
+                      x2={0}
+                      y2={Math.min(6, radius * 0.4)}
+                      stroke={strokeColor}
+                      strokeWidth={innerLineWidth}
+                    />
+                  </>
+                )}
+              </g>
+            </svg>
+          );
+        })()}
 
         {/* Active Vector Bézier Path Overlay (Illustrator Pen) */}
         {activeVectorPath && activeVectorPath.length > 0 && (
@@ -3512,6 +3715,14 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
         </div>
       )}
 
+      {/* High-Contrast Interactive Brush & Cursor Size HUD Badge */}
+      {sizePreviewVisible && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 bg-neutral-950/95 text-cyan-300 border border-cyan-500/80 shadow-2xl px-3.5 py-1.5 rounded-full text-xs font-mono font-bold flex items-center gap-2 pointer-events-none animate-in fade-in zoom-in-95 ring-2 ring-cyan-500/30">
+          <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 ring-2 ring-black animate-ping" />
+          <span>🎯 কার্সার সাইজ: {brushSettings.size}px</span>
+        </div>
+      )}
+
       {/* Clone Stamp Tool Floating Active HUD & Exit Button */}
       {activeTool === 'clone' && (
         <div
@@ -3557,11 +3768,11 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
               e.stopPropagation();
               onSelectTool?.('brush');
             }}
-            className="px-2.5 py-0.5 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-[11px] cursor-pointer shadow-sm active:scale-95 transition-all flex items-center gap-1 shrink-0"
+            className="px-3 py-1 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-xs cursor-pointer shadow-md active:scale-95 transition-all flex items-center gap-1.5 shrink-0 ring-2 ring-red-400/40"
             title="ক্লোন টুল বন্ধ করে সাধারণ ব্রাশে ফিরে যান (Exit Clone Tool)"
           >
             <X className="w-3.5 h-3.5" />
-            <span>বন্ধ করুন (Exit)</span>
+            <span>ক্লোন বন্ধ (Exit)</span>
           </button>
         </div>
       )}
@@ -3658,25 +3869,52 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
         </div>
       )}
 
-      {/* Floating Canvas Quick Viewport Tooltip / Responsive Mobile Toolbar */}
+      {/* Floating Canvas Quick Viewport Tooltip / Responsive Mobile Toolbar (Fully Draggable) */}
       {bottomBarVisible && (
         <div
-          onPointerDown={(e) => e.stopPropagation()}
-          onMouseDown={(e) => e.stopPropagation()}
-          onTouchStart={(e) => e.stopPropagation()}
+          ref={bottomBarRef}
+          onPointerDown={handleBottomBarDragStart}
+          onPointerMove={handleBottomBarDragMove}
+          onPointerUp={handleBottomBarDragEnd}
           onClick={(e) => e.stopPropagation()}
-          style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch' }}
-          className={`absolute z-30 select-none pointer-events-auto max-w-[calc(100vw-16px)] sm:max-w-[calc(100vw-80px)] overflow-x-auto scrollbar-none whitespace-nowrap scroll-touch bg-neutral-900/95 backdrop-blur-md border border-neutral-800 rounded-xl px-2.5 py-1 text-[11px] font-mono text-neutral-300 flex items-center gap-2 shadow-2xl transition-all ${
-            bottomBarPos === 'bottom-center'
+          style={
+            bottomBarOffset
+              ? {
+                  position: 'fixed',
+                  left: `${bottomBarOffset.x}px`,
+                  top: `${bottomBarOffset.y}px`,
+                  touchAction: 'pan-x',
+                  WebkitOverflowScrolling: 'touch',
+                  zIndex: 42,
+                }
+              : {
+                  touchAction: 'pan-x',
+                  WebkitOverflowScrolling: 'touch',
+                }
+          }
+          className={`absolute z-30 select-none pointer-events-auto max-w-[calc(100vw-16px)] sm:max-w-[calc(100vw-80px)] overflow-x-auto scrollbar-none whitespace-nowrap scroll-touch bg-neutral-900/95 backdrop-blur-md border border-cyan-500/50 rounded-xl px-2.5 py-1 text-[11px] font-mono text-neutral-300 flex items-center gap-2 shadow-2xl transition-all ${
+            bottomBarOffset
+              ? 'ring-1 ring-cyan-500/30'
+              : bottomBarPos === 'bottom-center'
               ? 'bottom-2.5 left-1/2 -translate-x-1/2'
               : bottomBarPos === 'top-float'
               ? 'top-14 left-1/2 -translate-x-1/2'
               : 'bottom-2.5 left-2 sm:left-3'
           }`}
         >
+          {/* Draggable Grip Handle on Mobile and Desktop */}
+          <div
+            className="flex items-center gap-1 cursor-move active:cursor-grabbing text-cyan-400 bg-neutral-850 hover:bg-neutral-800 px-2 py-0.5 rounded-lg border border-neutral-700/80 touch-none select-none shrink-0"
+            title="টেনে যেকোনো জায়গায় নিয়ে রাখুন (Drag anywhere)"
+          >
+            <GripHorizontal className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+            <span className="text-[10px] font-bold">টুলবার</span>
+          </div>
+
           {/* Quick Reposition Move Button */}
           <button
             onClick={() => {
+              setBottomBarOffset(null);
               setBottomBarPos((prev) =>
                 prev === 'bottom-left' ? 'bottom-center' : prev === 'bottom-center' ? 'top-float' : 'bottom-left'
               );
@@ -3925,8 +4163,8 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
       </div>
       )}
 
-      {/* Collapsed Bottom Status Bar Pull Tab on Screen Edge */}
-      {!bottomBarVisible && !isFullPageMode && (
+      {/* Collapsed Bottom Status Bar Pull Tab on Screen Edge - ALWAYS Accessible */}
+      {!bottomBarVisible && (
         <button
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
@@ -3934,11 +4172,11 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
             e.stopPropagation();
             onToggleBottomBar?.();
           }}
-          className="absolute bottom-2 left-2 z-35 bg-neutral-900/95 hover:bg-neutral-800 text-cyan-300 hover:text-white border border-cyan-500/80 shadow-2xl px-3 py-1.5 rounded-xl backdrop-blur-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 group select-none text-[11px] font-bold animate-in fade-in"
+          className="absolute bottom-2 left-2 z-40 bg-neutral-900/95 hover:bg-neutral-800 text-cyan-300 hover:text-white border border-cyan-500/80 shadow-2xl px-3 py-1.5 rounded-xl backdrop-blur-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 group select-none text-[11px] font-bold animate-in fade-in ring-2 ring-cyan-500/20"
           title="স্ট্যাটাস বার খুলুন (Show Bottom Status Bar)"
         >
-          <ChevronUp className="w-3.5 h-3.5 group-hover:-translate-y-0.5 transition-transform text-cyan-400" />
-          <span>স্ট্যাটাস বার খুলুন</span>
+          <ChevronUp className="w-4 h-4 group-hover:-translate-y-0.5 transition-transform text-cyan-400 animate-bounce" />
+          <span>টুলবার খুলুন</span>
         </button>
       )}
 
