@@ -114,9 +114,12 @@ export const AnimationTimeline: React.FC<AnimationTimelineProps> = ({
   return (
     <div className="h-28 bg-neutral-900 border-t border-neutral-800 flex flex-col text-xs text-neutral-200 select-none z-30">
       {/* Timeline Controls Bar */}
-      <div className="h-8 px-3 border-b border-neutral-800 bg-neutral-925 flex items-center justify-between">
+      <div
+        style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch' }}
+        className="h-8 px-2 sm:px-3 border-b border-neutral-800 bg-neutral-925 flex items-center justify-between gap-3 overflow-x-auto scrollbar-none whitespace-nowrap scroll-touch"
+      >
         {/* Left: Playback Controls */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={togglePlay}
             title={settings.isPlaying ? 'Pause Animation (Space)' : 'Play Animation (Space)'}
@@ -182,7 +185,7 @@ export const AnimationTimeline: React.FC<AnimationTimelineProps> = ({
         </div>
 
         {/* Center: Onion Skinning */}
-        <div className="flex items-center gap-2 relative">
+        <div className="flex items-center gap-2 relative shrink-0">
           <button
             onClick={() => onUpdateSettings({ onionSkin: !settings.onionSkin })}
             title="Toggle Onion Skinning"
@@ -250,7 +253,7 @@ export const AnimationTimeline: React.FC<AnimationTimelineProps> = ({
         </div>
 
         {/* Right: Sound Studio Button & Frame Manipulation Buttons */}
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           {onOpenQuickVoice && (
             <button
               onClick={onOpenQuickVoice}
