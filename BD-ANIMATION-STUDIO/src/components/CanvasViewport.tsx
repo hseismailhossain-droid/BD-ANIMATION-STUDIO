@@ -26,6 +26,7 @@ import {
   Volume2,
   ChevronDown,
   ChevronUp,
+  Move,
 } from 'lucide-react';
 import {
   Layer,
@@ -298,6 +299,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
   const lastDrawCompositeTime = useRef<number>(0);
   const [cloneToast, setCloneToast] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null);
+  const [bottomBarPos, setBottomBarPos] = useState<'bottom-left' | 'bottom-center' | 'top-float'>('bottom-left');
   const allLayersVisible = currentFrame.layers.every((l) => l.visible);
 
   // Lasso points buffer
@@ -3510,6 +3512,60 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
         </div>
       )}
 
+      {/* Clone Stamp Tool Floating Active HUD & Exit Button */}
+      {activeTool === 'clone' && (
+        <div
+          onPointerDown={(e) => e.stopPropagation()}
+          onMouseDown={(e) => e.stopPropagation()}
+          onTouchStart={(e) => e.stopPropagation()}
+          className="absolute top-3 left-1/2 -translate-x-1/2 z-40 bg-neutral-900/95 border border-amber-500/80 text-amber-200 px-3 py-1.5 rounded-full shadow-2xl flex items-center gap-2.5 text-xs backdrop-blur-md select-none animate-in fade-in zoom-in-95 max-w-[95vw] overflow-x-auto touch-pan-x"
+        >
+          <div className="flex items-center gap-1.5 font-bold text-amber-300 shrink-0">
+            <Crosshair className="w-4 h-4 text-amber-400 animate-spin" />
+            <span>ক্লোন স্ট্যাম্প</span>
+          </div>
+
+          <span className="text-neutral-500 shrink-0">|</span>
+
+          {cloneSettings.source ? (
+            <span className="text-[11px] text-amber-300 font-mono shrink-0">
+              সোর্স: ({Math.round(cloneSettings.source.x)}, {Math.round(cloneSettings.source.y)})
+            </span>
+          ) : (
+            <span className="text-[11px] text-amber-400/90 animate-pulse shrink-0">
+              ক্যানভাসে স্পর্শ করে সোর্স পয়েন্ট নিন
+            </span>
+          )}
+
+          {cloneSettings.source && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onUpdateCloneSettings({ source: null, isSettingSource: true });
+                setCloneToast('নতুন সোর্স সেট করতে ক্যানভাসে ট্যাপ করুন');
+                setTimeout(() => setCloneToast(null), 2000);
+              }}
+              className="px-2 py-0.5 rounded-full bg-neutral-800 hover:bg-neutral-700 text-neutral-200 text-[11px] border border-neutral-700 cursor-pointer transition-colors shrink-0"
+              title="নতুন সোর্স পয়েন্ট নিতে ক্লিক করুন"
+            >
+              নতুন সোর্স
+            </button>
+          )}
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              onSelectTool?.('brush');
+            }}
+            className="px-2.5 py-0.5 rounded-full bg-red-600 hover:bg-red-500 text-white font-bold text-[11px] cursor-pointer shadow-sm active:scale-95 transition-all flex items-center gap-1 shrink-0"
+            title="ক্লোন টুল বন্ধ করে সাধারণ ব্রাশে ফিরে যান (Exit Clone Tool)"
+          >
+            <X className="w-3.5 h-3.5" />
+            <span>বন্ধ করুন (Exit)</span>
+          </button>
+        </div>
+      )}
+
       {/* On-Canvas Floating Pro Grid Quick HUD */}
       {gridConfig?.enabled && (
         <div
@@ -3602,15 +3658,34 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
         </div>
       )}
 
-      {/* Floating Canvas Quick Viewport Tooltip */}
+      {/* Floating Canvas Quick Viewport Tooltip / Responsive Mobile Toolbar */}
       {bottomBarVisible && (
         <div
           onPointerDown={(e) => e.stopPropagation()}
           onMouseDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
           onClick={(e) => e.stopPropagation()}
-          className="absolute bottom-3 left-3 bg-neutral-900/90 backdrop-blur border border-neutral-800 rounded-lg px-2.5 py-1 text-[11px] font-mono text-neutral-400 flex items-center gap-2 shadow-lg z-30 select-none pointer-events-auto"
+          style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch' }}
+          className={`absolute z-30 select-none pointer-events-auto max-w-[calc(100vw-16px)] sm:max-w-[calc(100vw-80px)] overflow-x-auto scrollbar-none whitespace-nowrap scroll-touch bg-neutral-900/95 backdrop-blur-md border border-neutral-800 rounded-xl px-2.5 py-1 text-[11px] font-mono text-neutral-300 flex items-center gap-2 shadow-2xl transition-all ${
+            bottomBarPos === 'bottom-center'
+              ? 'bottom-2.5 left-1/2 -translate-x-1/2'
+              : bottomBarPos === 'top-float'
+              ? 'top-14 left-1/2 -translate-x-1/2'
+              : 'bottom-2.5 left-2 sm:left-3'
+          }`}
         >
+          {/* Quick Reposition Move Button */}
+          <button
+            onClick={() => {
+              setBottomBarPos((prev) =>
+                prev === 'bottom-left' ? 'bottom-center' : prev === 'bottom-center' ? 'top-float' : 'bottom-left'
+              );
+            }}
+            className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-cyan-300 transition-colors shrink-0 cursor-pointer"
+            title="টুলবার স্থান পরিবর্তন করুন (নিচে / উপরে / মাঝে)"
+          >
+            <Move className="w-3.5 h-3.5 text-cyan-400" />
+          </button>
         <span>Zoom: {Math.round(transform.zoom * 100)}%</span>
         <span>•</span>
         <span>
@@ -3839,7 +3914,7 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
                 e.stopPropagation();
                 onToggleBottomBar();
               }}
-              className="px-1.5 py-0.5 rounded bg-neutral-800/80 hover:bg-neutral-700 text-neutral-400 hover:text-cyan-300 font-sans text-[10px] flex items-center gap-1 cursor-pointer transition-colors"
+              className="px-2 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-cyan-400 hover:text-cyan-200 font-sans text-[11px] font-semibold flex items-center gap-1 cursor-pointer transition-colors shrink-0 border border-neutral-700 active:scale-95"
               title="স্ট্যাটাস বার লুকান (Hide Status Bar)"
             >
               <ChevronDown className="w-3 h-3 text-cyan-400" />
@@ -3859,11 +3934,11 @@ export const CanvasViewport: React.FC<CanvasViewportProps> = React.memo(({
             e.stopPropagation();
             onToggleBottomBar?.();
           }}
-          className="absolute bottom-0 left-1/2 -translate-x-1/2 z-35 bg-neutral-900/95 hover:bg-neutral-800 text-cyan-300 hover:text-white border-t border-x border-cyan-500/60 shadow-2xl px-3 py-1 rounded-t-xl backdrop-blur-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 group select-none text-[11px] font-bold"
+          className="absolute bottom-2 left-2 z-35 bg-neutral-900/95 hover:bg-neutral-800 text-cyan-300 hover:text-white border border-cyan-500/80 shadow-2xl px-3 py-1.5 rounded-xl backdrop-blur-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 group select-none text-[11px] font-bold animate-in fade-in"
           title="স্ট্যাটাস বার খুলুন (Show Bottom Status Bar)"
         >
           <ChevronUp className="w-3.5 h-3.5 group-hover:-translate-y-0.5 transition-transform text-cyan-400" />
-          <span>স্ট্যাটাস বার</span>
+          <span>স্ট্যাটাস বার খুলুন</span>
         </button>
       )}
 
