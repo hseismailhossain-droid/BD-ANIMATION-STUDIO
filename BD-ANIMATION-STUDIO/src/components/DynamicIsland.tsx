@@ -872,16 +872,25 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = React.memo(({
                         : 'সোর্স নির্ধারণ করতে ট্যাপ করুন'}
                     </span>
                   </div>
-                  <button
-                    onClick={onToggleCloneSampling}
-                    className={`px-2.5 py-1 rounded-lg font-bold transition-all shadow-sm ${
-                      cloneSettings?.isSettingSource
-                        ? 'bg-amber-400 text-black animate-pulse'
-                        : 'bg-amber-600 hover:bg-amber-500 text-white'
-                    }`}
-                  >
-                    {cloneSettings?.isSettingSource ? 'ক্যানভাসে ট্যাপ করুন' : '📍 সোর্স পয়েন্ট সেট'}
-                  </button>
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={onToggleCloneSampling}
+                      className={`px-2 py-1 rounded-lg font-bold transition-all shadow-sm ${
+                        cloneSettings?.isSettingSource
+                          ? 'bg-amber-400 text-black animate-pulse'
+                          : 'bg-amber-600 hover:bg-amber-500 text-white'
+                      }`}
+                    >
+                      {cloneSettings?.isSettingSource ? 'ক্যানভাসে ট্যাপ করুন' : '📍 সোর্স পয়েন্ট'}
+                    </button>
+                    <button
+                      onClick={() => onSelectTool('brush')}
+                      className="px-2 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-bold text-[11px] shadow-sm transition-all"
+                      title="ক্লোন টুল বন্ধ করুন"
+                    >
+                      বন্ধ
+                    </button>
+                  </div>
                 </div>
               )}
 
