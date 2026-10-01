@@ -48,6 +48,7 @@ import {
   Zap,
   Frown,
   Smile,
+  X,
   Sliders,
   Sparkles,
   MousePointer,
@@ -540,6 +541,24 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = React.memo(({
             <span>ভয়েস রেকর্ড</span>
           </button>
 
+          {/* Quick Exit Clone Tool in Capsule */}
+          {activeTool === 'clone' && (
+            <>
+              <div className="w-px h-3 bg-neutral-800" />
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onSelectTool('brush');
+                }}
+                className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-600 hover:bg-red-500 text-white text-[10px] font-bold shadow-md transition-all active:scale-95 ring-1 ring-red-400 shrink-0"
+                title="ক্লোন টুল বন্ধ করুন (Exit Clone Tool)"
+              >
+                <X className="w-3 h-3" />
+                <span>ক্লোন বন্ধ</span>
+              </button>
+            </>
+          )}
+
           {/* Quick Copy / Paste Object Controls in Capsule */}
           {(selectedVectorShapeId || canPaste || activeTool === 'vector-select') && (
             <>
@@ -897,7 +916,7 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = React.memo(({
               {/* Sliders: Size and Opacity */}
               <div className="flex items-center gap-3 bg-neutral-900/80 p-2 rounded-xl border border-neutral-800 text-[11px]">
                 <div className="flex-1 flex items-center gap-1.5">
-                  <span className="text-neutral-400">সাইজ:</span>
+                  <span className="text-cyan-400 font-bold text-[10px]">সাইজ:</span>
                   <input
                     type="range"
                     min="1"
@@ -906,7 +925,21 @@ export const DynamicIsland: React.FC<DynamicIslandProps> = React.memo(({
                     onChange={(e) => onUpdateBrushSettings({ size: Number(e.target.value) })}
                     className="flex-1 accent-cyan-400 h-1.5"
                   />
-                  <span className="font-mono text-cyan-300 w-6 text-right">{brushSettings.size}</span>
+                  <div
+                    className="w-4 h-4 rounded-full bg-black border border-cyan-500/60 flex items-center justify-center shrink-0 shadow-inner"
+                    title={`কার্সার ব্যাস: ${brushSettings.size}px`}
+                  >
+                    <div
+                      className="rounded-full bg-cyan-400"
+                      style={{
+                        width: `${Math.min(12, Math.max(3, Math.round(brushSettings.size / 8)))}px`,
+                        height: `${Math.min(12, Math.max(3, Math.round(brushSettings.size / 8)))}px`,
+                      }}
+                    />
+                  </div>
+                  <span className="font-mono text-cyan-300 font-bold bg-neutral-950 px-1 rounded border border-cyan-500/40 min-w-[28px] text-center text-[10px]">
+                    {brushSettings.size}
+                  </span>
                 </div>
 
                 <div className="w-px h-4 bg-neutral-800" />
