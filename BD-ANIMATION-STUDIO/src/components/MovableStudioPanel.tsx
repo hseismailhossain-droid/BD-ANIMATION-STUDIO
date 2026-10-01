@@ -52,13 +52,15 @@ export const MovableStudioPanel: React.FC<MovableStudioPanelProps> = ({
 
   const isDragging = useRef(false);
   const dragStartOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const positionRef = useRef(position);
+  positionRef.current = position;
   const panelRef = useRef<HTMLDivElement>(null);
 
   const startDrag = (clientX: number, clientY: number) => {
     isDragging.current = true;
     dragStartOffset.current = {
-      x: clientX - position.x,
-      y: clientY - position.y,
+      x: clientX - positionRef.current.x,
+      y: clientY - positionRef.current.y,
     };
   };
 
@@ -81,7 +83,7 @@ export const MovableStudioPanel: React.FC<MovableStudioPanelProps> = ({
     newY = Math.max(minY, Math.min(maxY, newY));
 
     setPosition({ x: newX, y: newY });
-  }, [position.x, position.y]);
+  }, []);
 
   const stopDrag = useCallback(() => {
     isDragging.current = false;
@@ -93,7 +95,25 @@ export const MovableStudioPanel: React.FC<MovableStudioPanelProps> = ({
       return;
     }
     e.stopPropagation();
+    try {
+      e.currentTarget.setPointerCapture(e.pointerId);
+    } catch (_) {}
     startDrag(e.clientX, e.clientY);
+  };
+
+  const handlePointerMoveCapture = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDragging.current) return;
+    e.stopPropagation();
+    moveDrag(e.clientX, e.clientY);
+  };
+
+  const handlePointerUpCapture = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (isDragging.current) {
+      isDragging.current = false;
+      try {
+        e.currentTarget.releasePointerCapture(e.pointerId);
+      } catch (_) {}
+    }
   };
 
   const handleDragStartTouch = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -191,28 +211,37 @@ export const MovableStudioPanel: React.FC<MovableStudioPanelProps> = ({
       {/* Draggable Movable Header Bar */}
       <div
         onPointerDown={handleDragStartPointer}
+        onPointerMove={handlePointerMoveCapture}
+        onPointerUp={handlePointerUpCapture}
         onTouchStart={handleDragStartTouch}
         className="h-10 px-3 bg-neutral-950/95 border-b border-neutral-800 flex items-center justify-between cursor-move active:cursor-grabbing shrink-0 select-none touch-none"
         title="ধরে যেকোনো জায়গায় ড্র্যাগ করে সরান (Touch & drag to move anywhere)"
       >
         <div className="flex items-center gap-1.5 text-xs font-bold text-cyan-400">
           <GripHorizontal className="w-4 h-4 text-cyan-500 animate-pulse shrink-0" />
-          <span className="truncate">কালার ও লেয়ার স্টুডিও</span>
+          <span className="truncate">কালার ও লেয়ার</span>
         </div>
 
         <div className="flex items-center gap-1">
           {/* Quick snap buttons */}
           <button
+            onClick={() => snapTo('top-left')}
+            title="উপরে বামে নিন"
+            className="px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-cyan-300 text-[10px] cursor-pointer"
+          >
+            বামে
+          </button>
+          <button
             onClick={() => snapTo('top-right')}
             title="উপরে ডানে নিন"
-            className="px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[10px] cursor-pointer"
+            className="px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-cyan-300 text-[10px] cursor-pointer"
           >
             ডানে
           </button>
           <button
             onClick={() => snapTo('bottom-right')}
             title="নিচে ডানে নিন"
-            className="px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[10px] cursor-pointer"
+            className="px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-cyan-300 text-[10px] cursor-pointer"
           >
             নিচে
           </button>
@@ -298,6 +327,8 @@ export const MovableStudioPanel: React.FC<MovableStudioPanelProps> = ({
       {/* Movable drag bar at bottom */}
       <div
         onPointerDown={handleDragStartPointer}
+        onPointerMove={handlePointerMoveCapture}
+        onPointerUp={handlePointerUpCapture}
         onTouchStart={handleDragStartTouch}
         className="py-1.5 px-2.5 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between text-[11px] text-neutral-300 shrink-0 cursor-move active:cursor-grabbing select-none touch-none"
         title="ধরে যেকোনো জায়গায় ড্র্যাগ করে সরান"
