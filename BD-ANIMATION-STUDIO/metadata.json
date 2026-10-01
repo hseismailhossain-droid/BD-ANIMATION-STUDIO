@@ -1,0 +1,6 @@
+{
+  "name": "BD Animation Studio",
+  "description": "Professional 8K digital drawing, vector illustration, 2D skeletal bone rigging (Blender & Moho style), mesh deformation, cinematic lighting, and frame-by-frame animation studio.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
