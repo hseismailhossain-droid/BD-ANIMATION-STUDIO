@@ -41,81 +41,125 @@ export const MovableStudioPanel: React.FC<MovableStudioPanelProps> = ({
   // Floating Position (X, Y)
   const [position, setPosition] = useState<{ x: number; y: number }>(() => {
     if (typeof window !== 'undefined') {
-      const panelWidth = Math.min(320, window.innerWidth * 0.85);
+      const panelWidth = Math.min(320, window.innerWidth - 16);
       return {
-        x: Math.max(10, window.innerWidth - panelWidth - 16),
-        y: Math.max(50, 60),
+        x: Math.max(8, window.innerWidth - panelWidth - 8),
+        y: Math.max(48, 56),
       };
     }
-    return { x: 400, y: 60 };
+    return { x: 400, y: 56 };
   });
 
   const isDragging = useRef(false);
   const dragStartOffset = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Drag start
-  const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
-    // Only allow drag from header/handle
-    const target = e.target as HTMLElement;
-    if (target.closest('button') || target.closest('select') || target.closest('input')) {
-      return;
-    }
-    e.preventDefault();
-    e.stopPropagation();
-
+  const startDrag = (clientX: number, clientY: number) => {
     isDragging.current = true;
     dragStartOffset.current = {
-      x: e.clientX - position.x,
-      y: e.clientY - position.y,
+      x: clientX - position.x,
+      y: clientY - position.y,
     };
-
-    try {
-      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    } catch {
-      // Ignore
-    }
   };
 
-  const handlePointerMove = useCallback((e: PointerEvent) => {
+  const moveDrag = useCallback((clientX: number, clientY: number) => {
     if (!isDragging.current) return;
-    e.preventDefault();
-
     const panel = panelRef.current;
     const width = panel ? panel.offsetWidth : 300;
     const height = panel ? panel.offsetHeight : 400;
 
-    let newX = e.clientX - dragStartOffset.current.x;
-    let newY = e.clientY - dragStartOffset.current.y;
+    let newX = clientX - dragStartOffset.current.x;
+    let newY = clientY - dragStartOffset.current.y;
 
-    // Viewport clamping
-    const minX = 6;
-    const maxX = Math.max(10, window.innerWidth - width - 6);
-    const minY = 6;
-    const maxY = Math.max(10, window.innerHeight - 50);
+    // Viewport clamping - ensure never pushed offscreen
+    const minX = 4;
+    const maxX = Math.max(10, window.innerWidth - width - 4);
+    const minY = 4;
+    const maxY = Math.max(10, window.innerHeight - 60);
 
     newX = Math.max(minX, Math.min(maxX, newX));
     newY = Math.max(minY, Math.min(maxY, newY));
 
     setPosition({ x: newX, y: newY });
+  }, [position.x, position.y]);
+
+  const stopDrag = useCallback(() => {
+    isDragging.current = false;
   }, []);
 
-  const handlePointerUp = useCallback((e: PointerEvent) => {
-    if (isDragging.current) {
-      isDragging.current = false;
+  const handleDragStartPointer = (e: React.PointerEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('select') || target.closest('input')) {
+      return;
     }
-  }, []);
+    e.stopPropagation();
+    startDrag(e.clientX, e.clientY);
+  };
+
+  const handleDragStartTouch = (e: React.TouchEvent<HTMLDivElement>) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('select') || target.closest('input')) {
+      return;
+    }
+    const touch = e.touches[0];
+    if (touch) {
+      startDrag(touch.clientX, touch.clientY);
+    }
+  };
 
   useEffect(() => {
-    window.addEventListener('pointermove', handlePointerMove, { passive: false });
-    window.addEventListener('pointerup', handlePointerUp);
-    window.addEventListener('pointercancel', handlePointerUp);
-    return () => {
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('pointercancel', handlePointerUp);
+    const onPointerMove = (e: PointerEvent) => moveDrag(e.clientX, e.clientY);
+    const onPointerUp = () => stopDrag();
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (isDragging.current && e.touches[0]) {
+        moveDrag(e.touches[0].clientX, e.touches[0].clientY);
+      }
     };
-  }, [handlePointerMove, handlePointerUp]);
+    const onTouchEnd = () => stopDrag();
+
+    window.addEventListener('pointermove', onPointerMove);
+    window.addEventListener('pointerup', onPointerUp);
+    window.addEventListener('touchmove', onTouchMove, { passive: true });
+    window.addEventListener('touchend', onTouchEnd);
+    window.addEventListener('touchcancel', onTouchEnd);
+
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove);
+      window.removeEventListener('pointerup', onPointerUp);
+      window.removeEventListener('touchmove', onTouchMove);
+      window.removeEventListener('touchend', onTouchEnd);
+      window.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [moveDrag, stopDrag]);
+
+  // Quick snap positions
+  const snapTo = (loc: 'top-left' | 'top-right' | 'bottom-right' | 'bottom-left' | 'center') => {
+    const panel = panelRef.current;
+    const width = panel ? panel.offsetWidth : 300;
+    const height = panel ? panel.offsetHeight : 400;
+
+    if (loc === 'top-left') {
+      setPosition({ x: 8, y: 48 });
+    } else if (loc === 'top-right') {
+      setPosition({ x: Math.max(8, window.innerWidth - width - 8), y: 48 });
+    } else if (loc === 'bottom-right') {
+      setPosition({
+        x: Math.max(8, window.innerWidth - width - 8),
+        y: Math.max(48, window.innerHeight - height - 12),
+      });
+    } else if (loc === 'bottom-left') {
+      setPosition({
+        x: 8,
+        y: Math.max(48, window.innerHeight - height - 12),
+      });
+    } else if (loc === 'center') {
+      setPosition({
+        x: Math.max(8, (window.innerWidth - width) / 2),
+        y: Math.max(48, (window.innerHeight - height) / 2),
+      });
+    }
+  };
 
   if (!isOpen) return null;
 
@@ -146,7 +190,8 @@ export const MovableStudioPanel: React.FC<MovableStudioPanelProps> = ({
     >
       {/* Draggable Movable Header Bar */}
       <div
-        onPointerDown={handlePointerDown}
+        onPointerDown={handleDragStartPointer}
+        onTouchStart={handleDragStartTouch}
         className="h-10 px-3 bg-neutral-950/95 border-b border-neutral-800 flex items-center justify-between cursor-move active:cursor-grabbing shrink-0 select-none touch-none"
         title="ধরে যেকোনো জায়গায় ড্র্যাগ করে সরান (Touch & drag to move anywhere)"
       >
@@ -156,6 +201,22 @@ export const MovableStudioPanel: React.FC<MovableStudioPanelProps> = ({
         </div>
 
         <div className="flex items-center gap-1">
+          {/* Quick snap buttons */}
+          <button
+            onClick={() => snapTo('top-right')}
+            title="উপরে ডানে নিন"
+            className="px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[10px] cursor-pointer"
+          >
+            ডানে
+          </button>
+          <button
+            onClick={() => snapTo('bottom-right')}
+            title="নিচে ডানে নিন"
+            className="px-1.5 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 text-[10px] cursor-pointer"
+          >
+            নিচে
+          </button>
+
           {/* Dock / Float Toggle (Desktop only) */}
           {!isMobile && !isFullPageMode && (
             <button
@@ -171,7 +232,7 @@ export const MovableStudioPanel: React.FC<MovableStudioPanelProps> = ({
           <button
             onClick={onClose}
             title="প্যানেল লুকান (Hide / Minimize)"
-            className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors cursor-pointer"
+            className="p-1 rounded hover:bg-neutral-800 text-neutral-400 hover:text-white transition-colors cursor-pointer ml-1"
           >
             <X className="w-4 h-4" />
           </button>
@@ -234,18 +295,39 @@ export const MovableStudioPanel: React.FC<MovableStudioPanelProps> = ({
         )}
       </div>
 
-      {/* Movable hint bar at bottom */}
-      <div className="py-1 px-2.5 bg-neutral-950/80 border-t border-neutral-800/50 flex items-center justify-between text-[10px] text-neutral-400 shrink-0">
-        <span className="flex items-center gap-1">
-          <Move className="w-3 h-3 text-cyan-400" />
-          <span>উপরে টেনে যেকোনো জায়গায় রাখুন</span>
+      {/* Movable drag bar at bottom */}
+      <div
+        onPointerDown={handleDragStartPointer}
+        onTouchStart={handleDragStartTouch}
+        className="py-1.5 px-2.5 bg-neutral-950/95 border-t border-neutral-800 flex items-center justify-between text-[11px] text-neutral-300 shrink-0 cursor-move active:cursor-grabbing select-none touch-none"
+        title="ধরে যেকোনো জায়গায় ড্র্যাগ করে সরান"
+      >
+        <span className="flex items-center gap-1.5 font-medium text-cyan-300">
+          <Move className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+          <span>টেনে যেকোনো জায়গায় রাখুন</span>
         </span>
-        <button
-          onClick={onClose}
-          className="text-cyan-400 hover:text-cyan-200 underline cursor-pointer"
-        >
-          লুকান
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => snapTo('center')}
+            className="px-1.5 py-0.5 rounded bg-neutral-850 hover:bg-neutral-750 text-neutral-300 text-[10px] cursor-pointer"
+            title="মাঝখানে রাখুন"
+          >
+            মাঝে
+          </button>
+          <button
+            onClick={() => snapTo('top-left')}
+            className="px-1.5 py-0.5 rounded bg-neutral-850 hover:bg-neutral-750 text-neutral-300 text-[10px] cursor-pointer"
+            title="বামে রাখুন"
+          >
+            বামে
+          </button>
+          <button
+            onClick={onClose}
+            className="px-2 py-0.5 rounded bg-neutral-800 hover:bg-neutral-700 text-cyan-400 font-medium text-[10px] cursor-pointer ml-1"
+          >
+            লুকান
+          </button>
+        </div>
       </div>
     </div>
   );
