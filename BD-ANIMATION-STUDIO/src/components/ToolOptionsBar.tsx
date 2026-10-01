@@ -118,6 +118,7 @@ interface ToolOptionsBarProps {
   isBoneActive?: boolean;
   onCancelBoneRig?: () => void;
   onApplyBoneRig?: () => void;
+  onSelectTool?: (tool: ToolType) => void;
 }
 
 export const ToolOptionsBar: React.FC<ToolOptionsBarProps> = React.memo(({
@@ -179,6 +180,7 @@ export const ToolOptionsBar: React.FC<ToolOptionsBarProps> = React.memo(({
   isBoneActive,
   onCancelBoneRig,
   onApplyBoneRig,
+  onSelectTool,
 }) => {
   const isBrushOrEraser =
     activeTool === 'brush' ||
@@ -468,6 +470,16 @@ export const ToolOptionsBar: React.FC<ToolOptionsBarProps> = React.memo(({
                   <span className="font-mono text-[10px] text-amber-300">
                     Source: ({Math.round(cloneSettings.source.x)}, {Math.round(cloneSettings.source.y)})
                   </span>
+                )}
+                {onSelectTool && (
+                  <button
+                    onClick={() => onSelectTool('brush')}
+                    className="px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white font-semibold text-[10px] transition-colors cursor-pointer flex items-center gap-1 active:scale-95 shadow"
+                    title="ক্লোন টুল বন্ধ করুন (Exit Clone Tool)"
+                  >
+                    <X className="w-3 h-3" />
+                    <span>Exit</span>
+                  </button>
                 )}
               </div>
             )}
