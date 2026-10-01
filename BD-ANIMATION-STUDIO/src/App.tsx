@@ -3702,16 +3702,28 @@ export default function App() {
         />
       )}
 
-      {/* Collapsed Timeline Pull Tab on Bottom Edge when hidden */}
-      {!timelineVisible && !isFullPageMode && (
+      {/* Collapsed Timeline Pull Tab on Bottom Edge when hidden - ALWAYS Accessible */}
+      {!timelineVisible && (
         <button
           onClick={() => setTimelineVisible(true)}
-          className="absolute bottom-2 right-2 z-35 bg-neutral-900/95 hover:bg-neutral-800 text-cyan-300 hover:text-white border border-cyan-500/80 shadow-2xl px-3 py-1.5 rounded-xl backdrop-blur-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 group select-none text-[11px] font-bold animate-in fade-in"
+          className="absolute bottom-2 right-2 z-35 bg-neutral-900/95 hover:bg-neutral-800 text-cyan-300 hover:text-white border border-cyan-500/80 shadow-2xl px-3 py-1.5 rounded-xl backdrop-blur-md flex items-center gap-1.5 cursor-pointer transition-all active:scale-95 group select-none text-[11px] font-bold animate-in fade-in ring-2 ring-cyan-500/20"
           title="টাইমলাইন খুলুন (Show Animation Timeline)"
         >
           <Film className="w-3.5 h-3.5 text-cyan-400" />
           <span>টাইমলাইন খুলুন</span>
           <ChevronUp className="w-3.5 h-3.5 text-cyan-400 group-hover:-translate-y-0.5 transition-transform" />
+        </button>
+      )}
+
+      {/* Zen Full Page Mode Exit Floating Indicator */}
+      {isFullPageMode && (
+        <button
+          onClick={() => setIsFullPageMode(false)}
+          className="fixed top-2 right-2 z-50 bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-[11px] px-3 py-1 rounded-full shadow-2xl flex items-center gap-1.5 cursor-pointer active:scale-95 animate-in fade-in transition-all ring-2 ring-amber-300"
+          title="ফুল পেইজ থেকে স্বাভাবিক মোডে ফিরে যান"
+        >
+          <Minimize2 className="w-3.5 h-3.5" />
+          <span>নরমাল মোড</span>
         </button>
       )}
 
