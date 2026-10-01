@@ -362,18 +362,31 @@ export const ToolOptionsBar: React.FC<ToolOptionsBarProps> = React.memo(({
               </div>
             )}
 
-            {/* Size Slider */}
-            <div className="flex items-center gap-2">
-              <span className="text-neutral-500 font-medium">Size:</span>
+            {/* Size Slider with High-Contrast Badge and Circle Preview */}
+            <div className="flex items-center gap-1.5 bg-neutral-900/90 px-2 py-0.5 rounded-lg border border-neutral-800">
+              <span className="text-cyan-400 font-bold text-[11px]">কার্সার সাইজ:</span>
               <input
                 type="range"
                 min="1"
                 max="300"
                 value={brushSettings.size}
                 onChange={(e) => onUpdateBrushSettings({ size: Number(e.target.value) })}
-                className="w-20 h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                className="w-18 sm:w-24 h-1.5 bg-neutral-800 rounded-lg appearance-none cursor-pointer accent-cyan-400"
               />
-              <span className="font-mono text-neutral-200 min-w-[28px] text-right">
+              {/* Visual circle dot showing relative size */}
+              <div
+                className="w-5 h-5 rounded-full bg-black border border-cyan-500/60 flex items-center justify-center shrink-0 shadow-inner"
+                title={`কার্সার ব্যাস: ${brushSettings.size}px`}
+              >
+                <div
+                  className="rounded-full bg-cyan-400 ring-1 ring-black"
+                  style={{
+                    width: `${Math.min(16, Math.max(3, Math.round(brushSettings.size / 6)))}px`,
+                    height: `${Math.min(16, Math.max(3, Math.round(brushSettings.size / 6)))}px`,
+                  }}
+                />
+              </div>
+              <span className="font-mono font-bold text-cyan-300 bg-neutral-950 border border-cyan-500/50 px-1.5 py-0.5 rounded shadow-sm min-w-[34px] text-center text-[10px]">
                 {brushSettings.size}px
               </span>
             </div>
@@ -474,11 +487,11 @@ export const ToolOptionsBar: React.FC<ToolOptionsBarProps> = React.memo(({
                 {onSelectTool && (
                   <button
                     onClick={() => onSelectTool('brush')}
-                    className="px-2 py-0.5 rounded bg-red-600 hover:bg-red-500 text-white font-semibold text-[10px] transition-colors cursor-pointer flex items-center gap-1 active:scale-95 shadow"
+                    className="px-2.5 py-1 rounded-md bg-red-600 hover:bg-red-500 text-white font-bold text-[11px] transition-all cursor-pointer flex items-center gap-1 active:scale-95 shadow-md shadow-red-950/50 ring-1 ring-red-400/50 shrink-0"
                     title="ক্লোন টুল বন্ধ করুন (Exit Clone Tool)"
                   >
-                    <X className="w-3 h-3" />
-                    <span>Exit</span>
+                    <X className="w-3.5 h-3.5" />
+                    <span>ক্লোন বন্ধ (Exit)</span>
                   </button>
                 )}
               </div>
