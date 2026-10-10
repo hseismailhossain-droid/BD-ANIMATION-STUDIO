@@ -1,0 +1,1000 @@
+import React, { useState } from 'react';
+import {
+  FolderOpen,
+  FileText,
+  Save,
+  Download,
+  Upload,
+  Undo2,
+  Redo2,
+  ZoomIn,
+  ZoomOut,
+  Maximize,
+  Sliders,
+  Sparkles,
+  Layers as LayersIcon,
+  RotateCcw,
+  FlipHorizontal,
+  FlipVertical,
+  RotateCw,
+  Plus,
+  Grid,
+  ChevronDown,
+  ChevronUp,
+  Scissors,
+  PaintBucket,
+  Copy,
+  ClipboardPaste,
+  CopyPlus,
+  Image as ImageIcon,
+  Bone,
+  Film,
+  Sun,
+  Mic,
+  Smartphone,
+  Minimize2,
+  Palette,
+  Magnet,
+} from 'lucide-react';
+import { CanvasConfig, ViewportTransform, GridConfig } from '../types';
+
+interface TopMenuBarProps {
+  config: CanvasConfig;
+  transform: ViewportTransform;
+  canUndo: boolean;
+  canRedo: boolean;
+  onUndo: () => void;
+  onRedo: () => void;
+  onZoomIn: () => void;
+  onZoomOut: () => void;
+  onResetZoom: () => void;
+  onFlipH: () => void;
+  onFlipV: () => void;
+  onRotate90: () => void;
+  onRotate270: () => void;
+  onNewCanvas: () => void;
+  onOpenResolutionModal: () => void;
+  onSaveProject: () => void;
+  onOpenProject: () => void;
+  onOpenProjectsModal?: () => void;
+  onRestoreAutosave?: () => void;
+  onImportImage: () => void;
+  onImportReferenceVideo?: () => void;
+  onExport: () => void;
+  onOpenFilters: () => void;
+  onOpenBrushSettings: () => void;
+  timelineVisible: boolean;
+  onToggleTimeline: () => void;
+  gridEnabled: boolean;
+  gridConfig?: GridConfig;
+  onToggleGrid: () => void;
+  onOpenGridStudio?: () => void;
+  onSelectAll?: () => void;
+  onDeselect?: () => void;
+  onInvertSelection?: () => void;
+  onFillSelection?: () => void;
+  onClearSelection?: () => void;
+  onOpenTransform?: (mode: 'translate-scale' | 'perspective' | 'mesh') => void;
+  onToggleReference?: () => void;
+  isReferenceOpen?: boolean;
+  onOpenTween?: () => void;
+  onOpenBoneRig?: () => void;
+  onOpenLighting?: () => void;
+  onOpenSoundStudio?: () => void;
+  onOpenQuickVoice?: () => void;
+  audioTrackCount?: number;
+  dynamicIslandEnabled?: boolean;
+  onToggleDynamicIsland?: () => void;
+  onCopy?: () => void;
+  onPaste?: () => void;
+  onCut?: () => void;
+  onDuplicate?: () => void;
+  canPaste?: boolean;
+  isFullPageMode?: boolean;
+  onToggleFullPageMode?: () => void;
+  rightPanelOpen?: boolean;
+  onToggleRightPanel?: () => void;
+  onHideTopBars?: () => void;
+  autosaveStatus?: 'saved' | 'saving' | null;
+}
+
+export const TopMenuBar: React.FC<TopMenuBarProps> = React.memo(({
+  config,
+  transform,
+  canUndo,
+  canRedo,
+  onUndo,
+  onRedo,
+  onZoomIn,
+  onZoomOut,
+  onResetZoom,
+  onFlipH,
+  onFlipV,
+  onRotate90,
+  onRotate270,
+  onNewCanvas,
+  onOpenResolutionModal,
+  onSaveProject,
+  onOpenProject,
+  onOpenProjectsModal,
+  onRestoreAutosave,
+  onImportImage,
+  onImportReferenceVideo,
+  onExport,
+  onOpenFilters,
+  onOpenBrushSettings,
+  timelineVisible,
+  onToggleTimeline,
+  gridEnabled,
+  gridConfig,
+  onToggleGrid,
+  onOpenGridStudio,
+  onSelectAll,
+  onDeselect,
+  onInvertSelection,
+  onFillSelection,
+  onClearSelection,
+  onOpenTransform,
+  onToggleReference,
+  isReferenceOpen,
+  onOpenTween,
+  onOpenBoneRig,
+  onOpenLighting,
+  onOpenSoundStudio,
+  onOpenQuickVoice,
+  audioTrackCount = 0,
+  dynamicIslandEnabled = true,
+  onToggleDynamicIsland,
+  onCopy,
+  onPaste,
+  onCut,
+  onDuplicate,
+  canPaste = false,
+  isFullPageMode = false,
+  onToggleFullPageMode,
+  rightPanelOpen = true,
+  onToggleRightPanel,
+  onHideTopBars,
+  autosaveStatus,
+}) => {
+  const [activeMenu, setActiveMenu] = useState<{ id: string; left: number } | null>(null);
+
+  const toggleMenu = (name: string, e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    if (activeMenu?.id === name) {
+      setActiveMenu(null);
+    } else {
+      const rect = e.currentTarget.getBoundingClientRect();
+      const left = Math.max(8, Math.min(rect.left, window.innerWidth - 260));
+      setActiveMenu({ id: name, left });
+    }
+  };
+
+  const closeMenu = () => setActiveMenu(null);
+
+  const is8K = config.width >= 7680 || config.height >= 4320;
+  const is4K = config.width >= 3840 && !is8K;
+
+  const headerRef = React.useRef<HTMLElement | null>(null);
+  const dragScrollRef = React.useRef<{ isDown: boolean; startX: number; scrollLeft: number }>({
+    isDown: false,
+    startX: 0,
+    scrollLeft: 0,
+  });
+
+  const handleHeaderMouseDown = (e: React.MouseEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('input') || target.closest('select')) {
+      return;
+    }
+    const header = headerRef.current;
+    if (!header) return;
+    dragScrollRef.current = {
+      isDown: true,
+      startX: e.pageX - header.offsetLeft,
+      scrollLeft: header.scrollLeft,
+    };
+  };
+
+  const handleHeaderPointerDown = (e: React.PointerEvent) => {
+    const target = e.target as HTMLElement;
+    if (target.closest('button') || target.closest('input') || target.closest('select')) {
+      return;
+    }
+    const header = headerRef.current;
+    if (!header) return;
+    dragScrollRef.current = {
+      isDown: true,
+      startX: e.clientX,
+      scrollLeft: header.scrollLeft,
+    };
+  };
+
+  const handleHeaderPointerMove = (e: React.PointerEvent) => {
+    if (!dragScrollRef.current.isDown) return;
+    const header = headerRef.current;
+    if (!header) return;
+    const deltaX = e.clientX - dragScrollRef.current.startX;
+    header.scrollLeft = dragScrollRef.current.scrollLeft - deltaX;
+  };
+
+  const handleHeaderPointerUp = () => {
+    dragScrollRef.current.isDown = false;
+  };
+
+  return (
+    <>
+      <header
+      ref={headerRef}
+      onPointerDown={handleHeaderPointerDown}
+      onPointerMove={handleHeaderPointerMove}
+      onPointerUp={handleHeaderPointerUp}
+      onPointerCancel={handleHeaderPointerUp}
+      style={{ touchAction: 'pan-x', WebkitOverflowScrolling: 'touch', overscrollBehaviorX: 'contain' }}
+      className="h-10 bg-neutral-900 border-b border-neutral-800 flex items-center justify-start px-2 sm:px-3 text-xs select-none z-30 relative overflow-x-auto whitespace-nowrap scroll-touch gap-3 sm:gap-4 cursor-grab active:cursor-grabbing"
+    >
+      {/* Left branding & menus */}
+      <div className="flex items-center gap-1 shrink-0">
+        {/* App Logo & Title */}
+        <div className="flex items-center gap-2 mr-2 font-semibold text-neutral-100 tracking-wide shrink-0">
+          <div className="w-5 h-5 rounded bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center shadow-sm">
+            <Sparkles className="w-3.5 h-3.5 text-white" />
+          </div>
+          <span className="text-xs sm:text-sm font-bold bg-gradient-to-r from-neutral-100 via-neutral-200 to-neutral-400 bg-clip-text text-transparent">
+            BD Animation <span className="text-cyan-400 font-extrabold">Studio</span>
+          </span>
+        </div>
+
+        {/* Autosave Status Badge & Quick Projects Access */}
+        {autosaveStatus && (
+          <button
+            onClick={() => onOpenProjectsModal ? onOpenProjectsModal() : onRestoreAutosave?.()}
+            className="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-neutral-850 hover:bg-neutral-800 border border-neutral-750 hover:border-cyan-500/50 text-[10px] text-neutral-300 font-mono shrink-0 mr-1 cursor-pointer transition-colors"
+            title="Click to view previous projects & autosaved work (আগের প্রজেক্ট ও অটোসেভ দেখতে ক্লিক করুন)"
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${autosaveStatus === 'saving' ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'}`} />
+            <span className="hidden sm:inline font-sans text-neutral-200">
+              {autosaveStatus === 'saving' ? 'Saving...' : 'Autosaved'}
+            </span>
+            <span className="text-cyan-400 font-bold text-[9px] hover:underline">
+              [প্রজেক্ট]
+            </span>
+          </button>
+        )}
+
+        {/* Quick Projects Button */}
+        {onOpenProjectsModal && (
+          <button
+            onClick={onOpenProjectsModal}
+            title="Open Previous Projects & Backups (আগের প্রজেক্ট ও ব্যাকআপ খুলুন)"
+            className="px-2 py-0.5 rounded bg-cyan-950/80 hover:bg-cyan-900 border border-cyan-700/60 text-cyan-300 hover:text-white text-[11px] font-semibold cursor-pointer transition-colors shrink-0 mr-1 flex items-center gap-1 shadow-sm"
+          >
+            <FolderOpen className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden md:inline">Projects</span>
+          </button>
+        )}
+
+        {/* Quick Hide Top Bars on Left */}
+        {onHideTopBars && (
+          <button
+            onClick={onHideTopBars}
+            title="Hide Menu & Toolbars (টুলবার ও মেনু লুকান)"
+            className="p-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-cyan-300 border border-neutral-750 text-[10px] font-bold cursor-pointer transition-colors shrink-0 mr-1 shadow-sm flex items-center gap-1 px-1.5"
+          >
+            <ChevronUp className="w-3 h-3 text-cyan-400" />
+            <span className="hidden sm:inline">Hide</span>
+          </button>
+        )}
+
+        {/* File Menu */}
+        <button
+          onClick={(e) => toggleMenu('file', e)}
+          className={`px-2 py-1 rounded transition-colors ${
+            activeMenu?.id === 'file'
+              ? 'bg-neutral-800 text-white font-semibold'
+              : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
+          }`}
+        >
+          File
+        </button>
+
+        {/* Edit Menu */}
+        <button
+          onClick={(e) => toggleMenu('edit', e)}
+          className={`px-2 py-1 rounded transition-colors ${
+            activeMenu?.id === 'edit'
+              ? 'bg-neutral-800 text-white font-semibold'
+              : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
+          }`}
+        >
+          Edit
+        </button>
+
+        {/* Image / Canvas Menu (Photoshop Parity) */}
+        <button
+          onClick={(e) => toggleMenu('image', e)}
+          className={`px-2 py-1 rounded transition-colors ${
+            activeMenu?.id === 'image'
+              ? 'bg-neutral-800 text-white font-semibold'
+              : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
+          }`}
+        >
+          Image
+        </button>
+
+        {/* Select Menu (Photoshop Parity) */}
+        <button
+          onClick={(e) => toggleMenu('select', e)}
+          className={`px-2 py-1 rounded transition-colors ${
+            activeMenu?.id === 'select'
+              ? 'bg-neutral-800 text-white font-semibold'
+              : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
+          }`}
+        >
+          Select
+        </button>
+
+        {/* Filters Menu */}
+        <button
+          onClick={onOpenFilters}
+          className="px-2 py-1 rounded text-neutral-300 hover:bg-neutral-800/70 hover:text-white transition-colors flex items-center gap-1.5"
+        >
+          <Sliders className="w-3.5 h-3.5 text-cyan-400" /> Filters
+        </button>
+
+        {/* View & Grid Menu */}
+        <button
+          onClick={(e) => toggleMenu('view', e)}
+          className={`px-2 py-1 rounded transition-colors flex items-center gap-1 ${
+            activeMenu?.id === 'view'
+              ? 'bg-neutral-800 text-white font-semibold'
+              : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
+          }`}
+        >
+          <Grid className="w-3.5 h-3.5 text-cyan-400" />
+          <span>View & Grid</span>
+        </button>
+
+        {/* Brush Engine Settings */}
+        <button
+          onClick={onOpenBrushSettings}
+          className="px-2 py-1 rounded text-neutral-300 hover:bg-neutral-800/70 hover:text-white transition-colors flex items-center gap-1.5"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Brushes
+        </button>
+
+        {/* Reference Image Option */}
+        <button
+          onClick={onToggleReference}
+          title="Reference Image Panel"
+          className={`px-2 py-1 rounded transition-colors flex items-center gap-1.5 ${
+            isReferenceOpen
+              ? 'bg-blue-950 text-blue-300 border border-blue-500/40 font-medium'
+              : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
+          }`}
+        >
+          <ImageIcon className="w-3.5 h-3.5 text-blue-400" /> Reference
+        </button>
+
+        {/* Keyframe Tweening Modal */}
+        <button
+          onClick={onOpenTween}
+          title="Keyframe Scale & Transform Animation"
+          className="px-2 py-1 rounded text-neutral-300 hover:bg-neutral-800/70 hover:text-cyan-300 transition-colors flex items-center gap-1.5"
+        >
+          <Film className="w-3.5 h-3.5 text-cyan-400" /> Tweening
+        </button>
+
+        {/* Cinematic Lighting & VFX Studio */}
+        <button
+          onClick={onOpenLighting}
+          title="Cinematic Lighting & VFX Studio (Sun, Moon, Ambient Lights)"
+          className="px-2 py-1 rounded text-neutral-300 hover:bg-neutral-800/70 hover:text-amber-300 transition-colors flex items-center gap-1.5"
+        >
+          <Sun className="w-3.5 h-3.5 text-amber-400" /> Lighting FX
+        </button>
+
+        {/* View Animation Timeline Toggle */}
+        <button
+          onClick={onToggleTimeline}
+          className={`px-2 py-1 rounded transition-colors flex items-center gap-1.5 ${
+            timelineVisible
+              ? 'bg-neutral-800 text-cyan-400 font-medium'
+              : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
+          }`}
+        >
+          <LayersIcon className="w-3.5 h-3.5" /> Timeline
+        </button>
+
+        {/* Dynamic Island Toggle (Mobile Studio) */}
+        {onToggleDynamicIsland && (
+          <button
+            onClick={onToggleDynamicIsland}
+            title="Dynamic Island Mobile HUD"
+            className={`px-2 py-1 rounded transition-colors flex items-center gap-1.5 ${
+              dynamicIslandEnabled
+                ? 'bg-cyan-950 text-cyan-300 border border-cyan-500/60 font-semibold'
+                : 'text-neutral-300 hover:bg-neutral-800/70 hover:text-white'
+            }`}
+          >
+            <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Dynamic Island</span>
+          </button>
+        )}
+      </div>
+
+      {/* Center Canvas Stats & Quick Resolution Button */}
+      <div className="flex items-center gap-2">
+        <button
+          onClick={onOpenResolutionModal}
+          title="Click to Switch Resolution (HD, 2K, 4K, 8K, Custom)"
+          className="flex items-center gap-1.5 px-3 py-0.5 bg-neutral-950 hover:bg-neutral-850 border border-neutral-800 hover:border-cyan-500/60 rounded-full font-mono text-[11px] text-neutral-300 transition-colors group cursor-pointer shadow-sm"
+        >
+          <span className="text-cyan-400 font-semibold group-hover:text-cyan-300">
+            {config.name}
+          </span>
+          <span className="text-neutral-600">|</span>
+          <span className="text-neutral-200">
+            {config.width} × {config.height}
+          </span>
+          <span className="text-neutral-600">|</span>
+          <span className="text-neutral-400 text-[10px]">{config.dpi} DPI</span>
+
+          {is8K ? (
+            <span className="px-1.5 py-0.2 bg-gradient-to-r from-amber-500/20 to-orange-500/20 text-amber-300 rounded text-[10px] font-bold border border-amber-500/30">
+              8K UHD
+            </span>
+          ) : is4K ? (
+            <span className="px-1.5 py-0.2 bg-cyan-950 text-cyan-300 rounded text-[10px] font-bold border border-cyan-500/30">
+              4K UHD
+            </span>
+          ) : null}
+
+          <ChevronDown className="w-3 h-3 text-neutral-500 group-hover:text-cyan-400" />
+        </button>
+
+        {/* Alignment Grid Toggle & Studio */}
+        <div className="flex items-center bg-neutral-800/80 rounded-md p-0.5 border border-neutral-700/60 shrink-0">
+          <button
+            onClick={onToggleGrid}
+            title={gridConfig?.enabled ? "Hide Grid (Ctrl+')" : "Show Grid (Ctrl+')"}
+            className={`px-2 py-1 rounded flex items-center gap-1.5 transition-colors cursor-pointer ${
+              gridConfig?.enabled
+                ? 'bg-cyan-950 text-cyan-300 font-bold border border-cyan-500/50 shadow'
+                : 'text-neutral-400 hover:text-neutral-200 hover:bg-neutral-750'
+            }`}
+          >
+            <Grid className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span className="text-[11px] font-semibold">{gridConfig?.enabled ? 'Grid ON' : 'Grid'}</span>
+            {gridConfig?.snapToGrid && gridConfig?.enabled && (
+              <span className="text-[9px] bg-amber-500/30 text-amber-300 px-1 rounded border border-amber-500/40">🧲</span>
+            )}
+          </button>
+
+          {onOpenGridStudio && (
+            <button
+              onClick={onOpenGridStudio}
+              title="Advanced Grid & Guides Settings"
+              className="p-1 rounded text-neutral-400 hover:text-cyan-300 hover:bg-neutral-750 cursor-pointer"
+            >
+              <Sliders className="w-3 h-3" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Right controls: Undo/Redo, Zoom & Viewport */}
+      <div className="flex items-center gap-1">
+        <button
+          disabled={!canUndo}
+          onClick={onUndo}
+          title="Undo (Ctrl+Z)"
+          className="p-1.5 rounded hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 disabled:opacity-30 disabled:hover:bg-transparent"
+        >
+          <Undo2 className="w-3.5 h-3.5" />
+        </button>
+        <button
+          disabled={!canRedo}
+          onClick={onRedo}
+          title="Redo (Ctrl+Y)"
+          className="p-1.5 rounded hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200 disabled:opacity-30 disabled:hover:bg-transparent"
+        >
+          <Redo2 className="w-3.5 h-3.5" />
+        </button>
+
+        {/* Quick Paste Button in Top Bar */}
+        <button
+          disabled={!canPaste}
+          onClick={onPaste}
+          title="Paste Object (Ctrl+V)"
+          className={`px-2.5 py-1 rounded flex items-center gap-1.5 text-[11px] font-semibold transition-all cursor-pointer ${
+            canPaste
+              ? 'bg-emerald-900/90 text-emerald-200 hover:bg-emerald-700 border border-emerald-500/70 shadow-sm animate-pulse'
+              : 'text-neutral-500 hover:text-neutral-300 hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed'
+          }`}
+        >
+          <ClipboardPaste className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Paste</span>
+        </button>
+
+        <div className="h-4 w-px bg-neutral-800 mx-1" />
+
+        {/* Zoom Controls */}
+        <button
+          onClick={onZoomOut}
+          title="Zoom Out"
+          className="p-1.5 rounded hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200"
+        >
+          <ZoomOut className="w-3.5 h-3.5" />
+        </button>
+
+        <button
+          onClick={onResetZoom}
+          title="Reset to 100%"
+          className="px-2 py-0.5 rounded font-mono text-[11px] text-neutral-300 hover:bg-neutral-800 min-w-[50px] text-center"
+        >
+          {Math.round(transform.zoom * 100)}%
+        </button>
+
+        <button
+          onClick={onZoomIn}
+          title="Zoom In"
+          className="p-1.5 rounded hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200"
+        >
+          <ZoomIn className="w-3.5 h-3.5" />
+        </button>
+
+        <button
+          onClick={onFlipH}
+          title="Flip Canvas Horizontal (Reflect View)"
+          className="p-1.5 rounded hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200"
+        >
+          <FlipHorizontal className="w-3.5 h-3.5" />
+        </button>
+
+        <button
+          onClick={onResetZoom}
+          title="Fit Canvas to Screen"
+          className="p-1.5 rounded hover:bg-neutral-800 text-neutral-400 hover:text-neutral-200"
+        >
+          <Maximize className="w-3.5 h-3.5" />
+        </button>
+
+        <div className="h-4 w-px bg-neutral-800 mx-1" />
+
+        {/* Full Page Zen Drawing Mode Button */}
+        {onToggleFullPageMode && (
+          <button
+            onClick={onToggleFullPageMode}
+            title={isFullPageMode ? 'Exit Full Screen Mode' : 'Full Page Zen Drawing Mode'}
+            className={`px-2.5 py-1 rounded flex items-center gap-1.5 text-[11px] font-bold transition-all cursor-pointer ${
+              isFullPageMode
+                ? 'bg-amber-500 text-black shadow-md ring-1 ring-amber-300 animate-pulse'
+                : 'bg-neutral-800 hover:bg-amber-950/80 text-amber-300 hover:text-amber-200 border border-amber-500/40'
+            }`}
+          >
+            {isFullPageMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize className="w-3.5 h-3.5" />}
+            <span className="hidden sm:inline">{isFullPageMode ? 'Normal View' : 'Full Page'}</span>
+          </button>
+        )}
+
+        {/* Hide Top Menu & Tools Bar Button */}
+        {onHideTopBars && (
+          <button
+            onClick={onHideTopBars}
+            title="Hide Top Menu & Tools Bar"
+            className="px-2 py-1 rounded bg-neutral-800 hover:bg-neutral-700 text-neutral-300 hover:text-cyan-300 flex items-center gap-1 text-[11px] font-medium border border-neutral-700 cursor-pointer transition-colors"
+          >
+            <ChevronUp className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">Hide Menu</span>
+          </button>
+        )}
+
+        {/* Toggle Right Dock (Color Studio & Layers) */}
+        {onToggleRightPanel && (
+          <button
+            onClick={onToggleRightPanel}
+            title="Toggle Layers & Color Dock"
+            className={`px-2.5 py-1 rounded flex items-center gap-1.5 text-[11px] font-semibold transition-all cursor-pointer ${
+              rightPanelOpen
+                ? 'bg-cyan-950 text-cyan-300 border border-cyan-700/60'
+                : 'bg-neutral-800 hover:bg-neutral-700 text-neutral-400 hover:text-white border border-neutral-700'
+            }`}
+          >
+            <LayersIcon className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="hidden sm:inline">Layers/Color</span>
+          </button>
+        )}
+
+        <div className="h-4 w-px bg-neutral-800 mx-1" />
+
+        {/* Primary Export Button */}
+        <button
+          onClick={onExport}
+          className="px-3 py-1 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-medium rounded shadow-sm flex items-center gap-1.5 transition-all"
+        >
+          <Download className="w-3.5 h-3.5" /> Export
+        </button>
+      </div>
+    </header>
+
+    {/* Dropdown Menu Overlay - Positioned Fixed outside Header to avoid scroll clipping */}
+    {activeMenu && (
+      <>
+        {/* Invisible backdrop to dismiss menu on tap/click anywhere */}
+        <div
+          className="fixed inset-0 z-40 bg-black/10 cursor-default"
+          onClick={closeMenu}
+          onPointerDown={closeMenu}
+        />
+        <div
+          style={{ left: `${activeMenu.left}px`, top: '40px' }}
+          className="fixed w-60 max-h-[calc(100vh-50px)] overflow-y-auto bg-neutral-900 border border-neutral-750 rounded-lg shadow-2xl py-1 text-neutral-200 z-50 animate-in fade-in zoom-in-95 duration-100"
+        >
+          {activeMenu.id === 'file' && (
+            <>
+              <button
+                onClick={() => { onNewCanvas(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Plus className="w-3.5 h-3.5 text-cyan-400" /> New Document...</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+N</span>
+              </button>
+              <button
+                onClick={() => { onOpenResolutionModal(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Sliders className="w-3.5 h-3.5 text-cyan-400" /> Canvas Resolution (HD-8K)...</span>
+              </button>
+              <div className="my-1 border-t border-neutral-800" />
+              {onOpenProjectsModal && (
+                <button
+                  onClick={() => { onOpenProjectsModal(); closeMenu(); }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between text-cyan-300 font-medium"
+                >
+                  <span className="flex items-center gap-2"><FolderOpen className="w-3.5 h-3.5 text-cyan-400" /> আগের প্রজেক্ট সমূহ (Projects)...</span>
+                  <span className="text-neutral-500 text-[10px]">Library</span>
+                </button>
+              )}
+              <button
+                onClick={() => { onOpenProject(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><FileText className="w-3.5 h-3.5 text-neutral-400" /> Open Project File (.ps8k)</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+O</span>
+              </button>
+              {onRestoreAutosave && (
+                <button
+                  onClick={() => { onRestoreAutosave(); closeMenu(); }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2"><RotateCcw className="w-3.5 h-3.5 text-amber-400" /> Restore Last Autosaved</span>
+                  <span className="text-neutral-500 text-[10px]">Autosave</span>
+                </button>
+              )}
+              <div className="my-1 border-t border-neutral-800" />
+              <button
+                onClick={() => { onImportImage(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center gap-2"
+              >
+                <Upload className="w-3.5 h-3.5 text-emerald-400" /> Insert Image as Layer
+              </button>
+              {onImportReferenceVideo && (
+                <button
+                  onClick={() => { onImportReferenceVideo(); closeMenu(); }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center gap-2"
+                >
+                  <Film className="w-3.5 h-3.5 text-purple-400" /> Import Reference Video (Frame by Frame)
+                </button>
+              )}
+              <div className="my-1 border-t border-neutral-800" />
+              <button
+                onClick={() => { onSaveProject(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Save className="w-3.5 h-3.5 text-neutral-400" /> Save Project File</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+S</span>
+              </button>
+              <button
+                onClick={() => { onExport(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Download className="w-3.5 h-3.5 text-amber-400" /> Export Artwork...</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+E</span>
+              </button>
+            </>
+          )}
+
+          {activeMenu.id === 'edit' && (
+            <>
+              <button
+                disabled={!canUndo}
+                onClick={() => { onUndo(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white disabled:opacity-40 disabled:hover:bg-transparent flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Undo2 className="w-3.5 h-3.5" /> Undo</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+Z</span>
+              </button>
+              <button
+                disabled={!canRedo}
+                onClick={() => { onRedo(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white disabled:opacity-40 disabled:hover:bg-transparent flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Redo2 className="w-3.5 h-3.5" /> Redo</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+Y</span>
+              </button>
+              <div className="my-1 border-t border-neutral-800" />
+              <button
+                onClick={() => { onCopy?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Copy className="w-3.5 h-3.5 text-cyan-400" /> Copy</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+C</span>
+              </button>
+              <button
+                disabled={!canPaste}
+                onClick={() => { onPaste?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white disabled:opacity-40 disabled:hover:bg-transparent flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><ClipboardPaste className="w-3.5 h-3.5 text-emerald-400" /> Paste</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+V</span>
+              </button>
+              <button
+                onClick={() => { onCut?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Scissors className="w-3.5 h-3.5 text-amber-400" /> Cut</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+X</span>
+              </button>
+              <button
+                onClick={() => { onDuplicate?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><CopyPlus className="w-3.5 h-3.5 text-purple-400" /> Duplicate</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+D</span>
+              </button>
+              <div className="my-1 border-t border-neutral-800" />
+              <button
+                onClick={() => { onFillSelection?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><PaintBucket className="w-3.5 h-3.5" /> Fill (Selection/Layer)</span>
+                <span className="text-neutral-500 text-[10px]">Alt+Bksp</span>
+              </button>
+              <button
+                onClick={() => { onClearSelection?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Scissors className="w-3.5 h-3.5" /> Clear Content</span>
+                <span className="text-neutral-500 text-[10px]">Del</span>
+              </button>
+              <div className="my-1 border-t border-neutral-800" />
+              <button
+                onClick={() => { onOpenTransform?.('translate-scale'); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><RotateCw className="w-3.5 h-3.5" /> Free Transform & 360°</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+T</span>
+              </button>
+              <button
+                onClick={() => { onOpenTransform?.('mesh'); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Grid className="w-3.5 h-3.5" /> Mesh Warp & Form</span>
+                <span className="text-cyan-400 text-[10px] font-bold">Warp</span>
+              </button>
+              <button
+                onClick={() => { onOpenTransform?.('perspective'); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Maximize className="w-3.5 h-3.5" /> Perspective Form</span>
+                <span className="text-neutral-500 text-[10px]">Skew</span>
+              </button>
+              <div className="my-1 border-t border-neutral-800" />
+              <button
+                onClick={() => { onOpenBoneRig?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Bone className="w-3.5 h-3.5 text-amber-400" /> 2D Bone Rigging</span>
+                <span className="text-amber-400 text-[10px]">Armature</span>
+              </button>
+              <button
+                onClick={() => { onOpenTween?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><Film className="w-3.5 h-3.5 text-cyan-400" /> Scale & Motion Tween</span>
+                <span className="text-cyan-400 text-[10px]">Keyframe</span>
+              </button>
+              <button
+                onClick={() => { onToggleReference?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2"><ImageIcon className="w-3.5 h-3.5 text-blue-400" /> Reference Image</span>
+                <span className="text-neutral-500 text-[10px]">Guide</span>
+              </button>
+            </>
+          )}
+
+          {activeMenu.id === 'image' && (
+            <>
+              <button
+                onClick={() => { onOpenResolutionModal(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center gap-2"
+              >
+                <Sliders className="w-3.5 h-3.5 text-cyan-400" /> Resolution & Canvas Size (8K)...
+              </button>
+              <div className="my-1 border-t border-neutral-800" />
+              <button
+                onClick={() => { onFlipH(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center gap-2"
+              >
+                <FlipHorizontal className="w-3.5 h-3.5" /> Flip Canvas Horizontally
+              </button>
+              <button
+                onClick={() => { onFlipV?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center gap-2"
+              >
+                <FlipVertical className="w-3.5 h-3.5" /> Flip Canvas Vertically
+              </button>
+              <button
+                onClick={() => { onRotate90?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center gap-2"
+              >
+                <RotateCw className="w-3.5 h-3.5" /> Rotate 90° Clockwise
+              </button>
+              <button
+                onClick={() => { onRotate270?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center gap-2"
+              >
+                <RotateCcw className="w-3.5 h-3.5" /> Rotate 90° Counter-Clockwise
+              </button>
+            </>
+          )}
+
+          {activeMenu.id === 'select' && (
+            <>
+              <button
+                onClick={() => { onSelectAll?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span>Select All</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+A</span>
+              </button>
+              <button
+                onClick={() => { onDeselect?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span>Deselect</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+D</span>
+              </button>
+              <button
+                onClick={() => { onInvertSelection?.(); closeMenu(); }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span>Invert Selection</span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+Shift+I</span>
+              </button>
+            </>
+          )}
+
+          {activeMenu.id === 'view' && (
+            <>
+              <button
+                onClick={() => {
+                  onToggleGrid();
+                  closeMenu();
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <Grid className="w-3.5 h-3.5 text-cyan-400" />
+                  {gridConfig?.enabled ? 'Hide Grid' : 'Show Grid'}
+                </span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+'</span>
+              </button>
+
+              {onOpenGridStudio && (
+                <button
+                  onClick={() => {
+                    onOpenGridStudio();
+                    closeMenu();
+                  }}
+                  className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+                >
+                  <span className="flex items-center gap-2">
+                    <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                    Grid Studio & Snap...
+                  </span>
+                  <span className="text-amber-400 text-[10px]">Advanced</span>
+                </button>
+              )}
+
+              <div className="my-1 border-t border-neutral-800" />
+
+              <button
+                onClick={() => {
+                  onResetZoom();
+                  closeMenu();
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <Maximize className="w-3.5 h-3.5 text-emerald-400" /> Fit on Screen
+                </span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+0</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  onZoomIn();
+                  closeMenu();
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <ZoomIn className="w-3.5 h-3.5 text-cyan-400" /> Zoom In
+                </span>
+                <span className="text-neutral-500 text-[10px]">Ctrl++</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  onZoomOut();
+                  closeMenu();
+                }}
+                className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+              >
+                <span className="flex items-center gap-2">
+                  <ZoomOut className="w-3.5 h-3.5 text-cyan-400" /> Zoom Out
+                </span>
+                <span className="text-neutral-500 text-[10px]">Ctrl+-</span>
+              </button>
+
+              {onToggleDynamicIsland && (
+                <>
+                  <div className="my-1 border-t border-neutral-800" />
+                  <button
+                    onClick={() => {
+                      onToggleDynamicIsland();
+                      closeMenu();
+                    }}
+                    className="w-full text-left px-3 py-1.5 hover:bg-cyan-600 hover:text-white flex items-center justify-between"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+                      {dynamicIslandEnabled ? 'Hide Dynamic Island HUD' : 'Show Dynamic Island HUD'}
+                    </span>
+                    <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ${
+                      dynamicIslandEnabled ? 'bg-cyan-950 text-cyan-300 border border-cyan-700/60' : 'text-neutral-500'
+                    }`}>
+                      {dynamicIslandEnabled ? 'ON' : 'OFF'}
+                    </span>
+                  </button>
+                </>
+              )}
+            </>
+          )}
+        </div>
+      </>
+    )}
+  </>
+  );
+}, (prevProps, nextProps) => {
+  // Ignore pan changes - only re-render if zoom changed or other props changed
+  if (Math.round(prevProps.transform.zoom * 100) !== Math.round(nextProps.transform.zoom * 100)) {
+    return false;
+  }
+  // Standard shallow comparison for other key props
+  if (prevProps.canUndo !== nextProps.canUndo) return false;
+  if (prevProps.canRedo !== nextProps.canRedo) return false;
+  if (prevProps.gridEnabled !== nextProps.gridEnabled) return false;
+  if (prevProps.gridConfig?.enabled !== nextProps.gridConfig?.enabled) return false;
+  if (prevProps.timelineVisible !== nextProps.timelineVisible) return false;
+  if (prevProps.dynamicIslandEnabled !== nextProps.dynamicIslandEnabled) return false;
+  if (prevProps.isFullPageMode !== nextProps.isFullPageMode) return false;
+  if (prevProps.rightPanelOpen !== nextProps.rightPanelOpen) return false;
+  if (prevProps.audioTrackCount !== nextProps.audioTrackCount) return false;
+  if (prevProps.canPaste !== nextProps.canPaste) return false;
+  if (prevProps.config.width !== nextProps.config.width || prevProps.config.height !== nextProps.config.height) return false;
+  return true;
+});
