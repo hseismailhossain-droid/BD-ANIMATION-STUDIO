@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <defs>
+    <linearGradient id="bg192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0f172a" />
+      <stop offset="50%" stop-color="#1e1b4b" />
+      <stop offset="100%" stop-color="#020617" />
+    </linearGradient>
+    <linearGradient id="glow192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="50%" stop-color="#818cf8" />
+      <stop offset="100%" stop-color="#c084fc" />
+    </linearGradient>
+    <linearGradient id="gold192" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#fbbf24" />
+    </linearGradient>
+  </defs>
+
+  <rect width="192" height="192" rx="42" fill="url(#bg192)" />
+  <rect width="186" height="186" x="3" y="3" rx="39" fill="none" stroke="url(#glow192)" stroke-width="3" stroke-opacity="0.5" />
+
+  <!-- Stylus / Canvas Emblem -->
+  <path d="M 45 130 C 70 95, 95 145, 125 105 C 140 85, 150 90, 155 75" fill="none" stroke="url(#glow192)" stroke-width="8" stroke-linecap="round" />
+  <path d="M 125 50 L 148 73 L 98 123 L 78 126 L 81 106 Z" fill="url(#glow192)" />
+  <polygon points="78,126 90,116 88,124" fill="#ffffff" />
+
+  <!-- 8K Tag -->
+  <rect x="105" y="136" width="60" height="24" rx="7" fill="url(#gold192)" />
+  <text x="135" y="153" font-family="system-ui, sans-serif" font-weight="900" font-size="12" fill="#000" text-anchor="middle">8K</text>
+</svg>
